@@ -1,0 +1,5 @@
+# Author: Bishakh
+__pycache__/
+*.pyc
+.venv/
+tests/

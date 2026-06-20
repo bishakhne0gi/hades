@@ -1,0 +1,33 @@
+# Author: Bishakh
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: worldcup
+      POSTGRES_PASSWORD: worldcup
+      POSTGRES_DB: worldcup
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U worldcup"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  core-api:
+    build: ../../services/core-api
+    environment:
+      DATABASE_URL: postgresql+psycopg://worldcup:worldcup@postgres:5432/worldcup
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  simulator:
+    build: ../../services/simulator
+    ports:
+      - "9000:9000"
+
+volumes:
+  pgdata:
