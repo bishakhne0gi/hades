@@ -1,7 +1,9 @@
 # Author: Bishakh
 from fastapi import FastAPI
-from app.db import Base, engine
-from app.routers import teams, fixtures
+from app.db.base import Base
+from app.db.session import engine
+from app import models  # noqa: F401  (import registers all tables on Base.metadata)
+from app.api.routes import teams, fixtures
 
 app = FastAPI(title="World Cup Hub — Core API")
 

@@ -5,7 +5,8 @@ from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 from app.main import app
-from app.db import Base, get_db
+from app.db.base import Base
+from app.db.session import get_db
 
 # StaticPool keeps a single shared connection so the in-memory DB (and its
 # tables) is visible across threads — TestClient runs endpoints in a worker thread.
@@ -18,7 +19,20 @@ TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=Fals
 
 
 @pytest.fixture()
+def db_session():
+    """A real (in-memory) session for repository integration tests."""
+    Base.metadata.create_all(bind=engine)
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+        Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture()
 def client():
+    """A TestClient with the DB dependency overridden to the in-memory engine."""
     Base.metadata.create_all(bind=engine)
 
     def override_get_db():
