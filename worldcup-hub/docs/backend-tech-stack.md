@@ -107,6 +107,114 @@ This means "run the `app` object found in `app/main.py`, listen on port 8000".
 > Hypercorn/Daphne, or front it with Gunicorn workers, **without changing your app**. (`fastapi run`
 > looks like "running alone" but just launches Uvicorn under the hood.)
 
+### Visual: Node-bundled server vs Python's app/server split
+
+Every web app must do **two jobs**: (1) an **HTTP server** that binds a port + parses HTTP, and
+(2) an **event loop** that drives async I/O. The only difference is *who* does them.
+
+**🟩 Node + Fastify — server + loop are built into the runtime (one box):**
+
+```mermaid
+flowchart TB
+  subgraph NODE["Node.js runtime — one bundled box"]
+    direction TB
+    F["Fastify<br/>routes + logic"]
+    H["http module<br/>HTTP SERVER · built in"]
+    L["libuv<br/>EVENT LOOP · built in"]
+    F --> H --> L
+  end
+  L --> P3["port 3000"]
+```
+
+**🟦 Python + FastAPI — app and server are separate, joined by the ASGI plug (two boxes):**
+
+```mermaid
+flowchart LR
+  subgraph APP["FastAPI — the APPLICATION"]
+    R["routes + Pydantic validation<br/>never binds a port<br/>never runs the loop"]
+  end
+  subgraph SRV["Uvicorn — the SERVER"]
+    HS["HTTP server · binds the port"]
+    EL["uvloop · EVENT LOOP · starts the loop"]
+  end
+  APP <-->|ASGI protocol| SRV
+  SRV --> P8["port 8000"]
+```
+
+**The same request, traced through each:**
+
+```mermaid
+flowchart LR
+  B["browser"] --> U1["Uvicorn<br/>server"]
+  U1 -->|ASGI| FA["FastAPI<br/>route"]
+  FA -->|ASGI| U2["Uvicorn<br/>server"]
+  U2 --> RESP["response"]
+```
+
+**Why the split is a feature — swap the engine, keep the car (app unchanged):**
+
+```mermaid
+flowchart TB
+  U["Uvicorn"] -. ASGI .-> APP
+  H["Hypercorn"] -. ASGI .-> APP
+  G["Gunicorn manages Uvicorn workers"] -. ASGI .-> APP
+  APP["your FastAPI app<br/>unchanged in every case"]
+```
+
+<details>
+<summary>Plain-text (ASCII) version of the same diagrams</summary>
+
+```
+The two jobs every web app must do:
+  1. HTTP SERVER  → binds a port, parses raw HTTP bytes
+  2. EVENT LOOP   → drives async I/O, handles many connections at once
+  (both ALWAYS happen — the only question is WHO does them)
+
+
+NODE + FASTIFY — server is BUILT INTO the runtime
+  ╔════════════════════════════════════════╗
+  ║              Node.js runtime           ║
+  ║   ┌──────────────────────────────┐     ║
+  ║   │  Fastify  (routes + logic)   │     ║
+  ║   └──────────────────────────────┘     ║
+  ║   ┌──────────────────────────────┐     ║
+  ║   │  http module (HTTP SERVER) ◀─┼── built in
+  ║   ├──────────────────────────────┤     ║
+  ║   │  libuv       (EVENT LOOP)  ◀─┼── built in
+  ║   └──────────────────────────────┘     ║
+  ╚══════════════════╤═════════════════════╝
+                ╔════▼════╗
+                ║ port 3000║   ← Fastify just calls Node's built-in server
+                ╚═════════╝
+
+
+PYTHON + FASTAPI — app and server are SEPARATE, joined by ASGI
+  ┌───────────────────────────┐              ┌───────────────────────────┐
+  │   FastAPI                 │    ASGI       │   Uvicorn                 │
+  │   (the APPLICATION)       │  ◀════════▶   │   (the SERVER)            │
+  │  • routes                 │  (the plug)   │  • HTTP SERVER  ◀── binds │
+  │  • validation (Pydantic)  │               │  • uvloop (EVENT LOOP)    │
+  │  • returns a response     │               │  • starts the loop        │
+  └───────────────────────────┘              └─────────────┬─────────────┘
+       the "WHAT"                                 the "ENGINE"  │
+       (never binds a port,                                ╔════▼════╗
+        never runs the loop)                               ║ port 8000║
+                                                           ╚═════════╝
+
+
+Same request, traced:
+  NODE:    browser ─▶ [ Node http server ─▶ Fastify route ] ─▶ response
+                      └──────── one bundled box ─────────┘
+  PYTHON:  browser ─▶ Uvicorn ──ASGI──▶ FastAPI route ──ASGI──▶ Uvicorn ─▶ response
+                     (server)            (your app)             (server)
+```
+
+</details>
+
+**Analogy:** in Node the engine (server) is welded into the car (runtime) — you just drive. In
+Python, FastAPI is the steering + logic and Uvicorn is the engine — you bolt them together, and you
+can bolt on a different engine (Hypercorn, Gunicorn-managed workers) anytime without changing the app.
+
 **The difference:** Gunicorn (older, sync-oriented; often used to *manage* multiple Uvicorn workers
 in production), Hypercorn (another ASGI server). For dev and our containers, Uvicorn alone is fine.
 
