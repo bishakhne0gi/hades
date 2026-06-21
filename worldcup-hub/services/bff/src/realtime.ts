@@ -114,6 +114,21 @@ export function recentCommentary(fixtureId: number): MatchEvent[] {
   return commentary.get(fixtureId) ?? [];
 }
 
+/**
+ * Inject a commentary line into the shared pipeline from a non-Redis source
+ * (the real football-data poller synthesises events from score changes, since
+ * the free tier exposes no play-by-play). Reuses the same buffer + bus the SSE
+ * route consumes, so live commentary works identically in real and sim modes.
+ */
+export function pushCommentary(fixtureId: number, event: MatchEvent): void {
+  if (event.type === "kickoff") commentary.set(fixtureId, []);
+  const buf = commentary.get(fixtureId) ?? [];
+  buf.push(event);
+  if (buf.length > 80) buf.shift();
+  commentary.set(fixtureId, buf);
+  bus.emit(`match:${fixtureId}`, event);
+}
+
 function applyEvent(ev: IncomingEvent): void {
   if (ev.type === "kickoff") commentary.set(ev.fixture_id, []);
   lastSeen.set(ev.fixture_id, Date.now());

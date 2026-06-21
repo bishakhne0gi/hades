@@ -5,7 +5,8 @@ declare module "scoreboard/App" {
   export default App;
 }
 declare module "matchCenter/App" {
-  const App: React.ComponentType;
+  // Match-detail remote: accepts the route's match id as a prop (NAVIGATION CONTRACT).
+  const App: React.ComponentType<{ matchId?: number }>;
   export default App;
 }
 declare module "standings/App" {

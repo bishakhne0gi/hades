@@ -4,6 +4,51 @@
 
 Prerequisites: **Docker** running, **Node 20+**, **pnpm**.
 
+> ## ⚡ What changed in the UI revamp
+> The hub was rebuilt around the **Aura** design system (a faithful light theme — orange
+> `#FF5C00` on `#F8F9F9`, Inter / Playfair Display / JetBrains Mono) and now reads **real
+> FIFA World Cup 2026 data**.
+>
+> - **The BFF now fetches football-data.org directly** (server-side, cached) when
+>   `FOOTBALL_API_KEY` is set. **Redis and the simulator are no longer required for real data** —
+>   they remain only as the offline `sim` fallback.
+> - **New routed UI** (the shell uses react-router): **Fixtures** (`/fixtures`, all 104 matches,
+>   filterable by status/group) · **Standings** (`/standings`, all 12 groups) · **News** · and a
+>   **match detail page** (`/match/:id`) reached by clicking any match. Finished matches show the
+>   real score breakdown / venue / referees / odds; live matches show live score + minute.
+> - **New endpoint:** `GET /bff/fixtures` → all 104 matches. `GET /bff/standings`,
+>   `/bff/scoreboard`, `/bff/match/:id` now return the real, enriched view-models.
+> - **Live commentary, goals & stats — from ESPN (free, no key):** football-data.org's free tier
+>   has no play-by-play, so the match detail page enriches from **ESPN's public site API**
+>   (`site.api.espn.com`, league `fifa.world`) — real flowing **commentary**, **goals/cards**,
+>   **lineups + formations**, and **statistics** (possession, shots, corners…). The BFF resolves a
+>   football-data fixture to its ESPN event by date + team match (`services/bff/src/espn.ts`), maps
+>   it to the shared contract, and **streams new commentary lines over the existing SSE**
+>   (`/bff/sse/match/:id`) for live matches. `services/bff/src/apiFootball.ts` is an optional richer
+>   fallback if an `APIFOOTBALL_KEY` is ever set. No key is required for the default ESPN path.
+>   Override the league with `ESPN_LEAGUE` if needed.
+>
+> ### Fastest real-data run (no Docker, no Redis)
+> ```bash
+> cd worldcup-hub
+> pnpm install            # first time only
+> pnpm build              # remotes need their built remoteEntry.js
+> # 1) BFF with the real World Cup feed:
+> FOOTBALL_API_KEY=<token> DATA_SOURCE=real PORT=8080 pnpm -F @wc/bff start &
+> # 2) the micro-frontends:
+> pnpm -F @wc/mfe-scoreboard preview & pnpm -F @wc/mfe-match-center preview &
+> pnpm -F @wc/mfe-standings preview & pnpm -F @wc/mfe-news preview &
+> # 3) the shell host (see macOS port note below):
+> pnpm -F @wc/shell exec vite preview --port 5050 --strictPort
+> ```
+> Then open **http://localhost:5050/fixtures**. A working key already lives in
+> `infra/docker/.env`.
+>
+> > **macOS note:** port **5000 is taken by the system AirPlay Receiver** (ControlCenter), so the
+> > shell's default `--port 5000` fails with "port in use". Run the host on another port
+> > (e.g. `--port 5050` as above), or disable *System Settings → General → AirDrop & Handoff →
+> > AirPlay Receiver*. The remotes (5001–5004) are unaffected.
+
 ## Ports at a glance
 
 | Service | Port | Tier |

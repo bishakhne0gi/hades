@@ -18,7 +18,7 @@ export default defineConfig({
       },
       filename: "remoteEntry.js",
       dts: false,
-      shared: ["react", "react-dom"],
+      shared: ["react", "react-dom", "react-router-dom"],
     }),
   ],
   server: { port: 5000, strictPort: true, origin: "http://localhost:5000" },

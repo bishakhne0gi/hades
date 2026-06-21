@@ -2,37 +2,36 @@
 // Standings uses POLLING — a plain interval re-fetch. Simple, cache-friendly,
 // and fine for data that changes slowly relative to live scores.
 //
-// UI: redesigned to mimic Apple's "Apple Sports" app — a polished dark theme
-// with rounded, elevated cards, system fonts, bold team abbreviations, muted
-// secondary stats, and a dominant PTS column. Standings are grouped by their
-// World Cup group (the "divisions"); the top 2 of each group are highlighted
-// as the knockout-qualification zone.
+// UI: Aura Platform LIGHT theme — editorial light surfaces, Inter/Playfair/
+// JetBrains Mono, primary #FF5C00 accents on a #F8F9F9 background. Standings are
+// grouped into all 12 World Cup groups (A..L). Each group is a white Aura card
+// with a full table of the enriched real fields (P W D L GF GA GD PTS + form).
+// The top 2 of every group are highlighted as the knockout-qualification zone.
 import { useEffect, useMemo, useState } from "react";
-import { flagEmoji } from "@wc/ui";
+import {
+  tokens,
+  useAuraFonts,
+  Panel,
+  Badge,
+  Flag,
+  SectionTitle,
+} from "@wc/ui";
 import type { StandingRow, TimestampedEnvelope } from "@wc/types";
 
 const BFF = import.meta.env.VITE_BFF_URL ?? "http://localhost:8080";
-const POLL_MS = 8000;
+const POLL_MS = 15_000;
 
-// ---- Apple Sports palette ------------------------------------------------
-const COLORS = {
-  bg: "#000000",
-  card: "#1c1c1e",
-  cardBorder: "rgba(255,255,255,0.06)",
-  divider: "rgba(255,255,255,0.08)",
-  text: "#ffffff",
-  textSecondary: "#8e8e93",
-  textTertiary: "#636366",
-  accentGreen: "#30d158", // iOS green — qualification zone
-  accentBlue: "#0a84ff", // iOS blue
-};
+// ---------------------------------------------------------------------------
+// Grouping + sorting
+// ---------------------------------------------------------------------------
 
-const FONT =
-  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, sans-serif';
-
-// Group the flat rows by division and sort within each group.
 type Group = { letter: string; rows: StandingRow[] };
 
+/**
+ * Group the flat rows into Group A..L cards (sorted alphabetically). Within a
+ * group sort by `position` when present, else points desc → goal_difference
+ * desc → goals_for desc.
+ */
 function groupByDivision(rows: StandingRow[]): Group[] {
   const map = new Map<string, StandingRow[]>();
   for (const r of rows) {
@@ -44,41 +43,127 @@ function groupByDivision(rows: StandingRow[]): Group[] {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([letter, groupRows]) => ({
       letter,
-      rows: [...groupRows].sort(
-        (a, b) => b.points - a.points || b.won - a.won || a.team.localeCompare(b.team),
-      ),
+      rows: [...groupRows].sort((a, b) => {
+        if (a.position != null && b.position != null) return a.position - b.position;
+        return (
+          b.points - a.points ||
+          (b.goal_difference ?? 0) - (a.goal_difference ?? 0) ||
+          (b.goals_for ?? 0) - (a.goals_for ?? 0)
+        );
+      }),
     }));
 }
 
-// One-time injected stylesheet for things inline styles can't do (hover, fonts).
-const STYLE_ID = "apple-sports-standings-style";
+// ---------------------------------------------------------------------------
+// Injected stylesheet — hover + responsive (hide GF/GA on narrow widths).
+// Mirrors the injected-<style> pattern used by @wc/ui.
+// ---------------------------------------------------------------------------
+
+const STYLE_ID = "aura-standings-style";
 function useInjectedStyle() {
   useEffect(() => {
     if (document.getElementById(STYLE_ID)) return;
     const el = document.createElement("style");
     el.id = STYLE_ID;
     el.textContent = `
-      .as-row { transition: background 120ms ease; }
-      .as-row:hover { background: rgba(255,255,255,0.04); }
-      .as-grid { max-width: 760px; margin: 0 auto; padding: 0 16px 64px; }
-      @media (max-width: 520px) {
-        .as-hide-sm { display: none !important; }
+      .st-row { transition: background 140ms ease; }
+      .st-row:hover { background: ${tokens.color.surfaceMuted}; }
+      @media (max-width: 560px) {
+        .st-hide-sm { display: none !important; }
       }
     `;
     document.head.appendChild(el);
   }, []);
 }
 
-const STAT_COLS: { key: keyof StandingRow; label: string }[] = [
+// ---------------------------------------------------------------------------
+// Columns. `hideSm` columns (GF/GA) collapse on narrow widths; we always keep
+// P, GD and PTS so the table stays meaningful.
+// ---------------------------------------------------------------------------
+
+type StatCol = {
+  key: "played" | "won" | "drawn" | "lost" | "goals_for" | "goals_against" | "goal_difference";
+  label: string;
+  hideSm?: boolean;
+  strong?: boolean; // GD shown slightly stronger than other minor stats
+};
+
+const STAT_COLS: StatCol[] = [
   { key: "played", label: "P" },
-  { key: "won", label: "W" },
-  { key: "drawn", label: "D" },
-  { key: "lost", label: "L" },
+  { key: "won", label: "W", hideSm: true },
+  { key: "drawn", label: "D", hideSm: true },
+  { key: "lost", label: "L", hideSm: true },
+  { key: "goals_for", label: "GF", hideSm: true },
+  { key: "goals_against", label: "GA", hideSm: true },
+  { key: "goal_difference", label: "GD", strong: true },
 ];
 
-// Shared grid template: rank | team | P W D L | PTS
-const GRID =
-  "28px minmax(0,1fr) repeat(4, 34px) 52px";
+// rank | team | (P W D L GF GA GD) | PTS
+const GRID = "34px minmax(0,1fr) repeat(7, 30px) 44px";
+
+function statValue(row: StandingRow, key: StatCol["key"]): string {
+  const v = row[key];
+  if (v == null) return "–";
+  if (key === "goal_difference" && typeof v === "number" && v > 0) return `+${v}`;
+  return String(v);
+}
+
+// ---------------------------------------------------------------------------
+// Form chips — tiny W/D/L pills from a "W,W,D,L" string.
+// ---------------------------------------------------------------------------
+
+function FormChips({ form }: { form: string }) {
+  const results = form
+    .split(/[,\s]+/)
+    .map((s) => s.trim().toUpperCase())
+    .filter(Boolean)
+    .slice(-5);
+  if (results.length === 0) return null;
+  const color = (r: string) =>
+    r === "W"
+      ? tokens.color.success
+      : r === "L"
+        ? tokens.color.accent
+        : tokens.color.secondary;
+  return (
+    <span style={{ display: "inline-flex", gap: 3 }} aria-label={`Recent form ${results.join(" ")}`}>
+      {results.map((r, i) => (
+        <span
+          key={i}
+          title={r}
+          style={{
+            width: 14,
+            height: 14,
+            borderRadius: 4,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: tokens.font.mono,
+            fontSize: 9,
+            fontWeight: 700,
+            lineHeight: 1,
+            color: tokens.color.white,
+            background: color(r),
+          }}
+        >
+          {r}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Header + team rows
+// ---------------------------------------------------------------------------
+
+const numCell = (extra?: React.CSSProperties): React.CSSProperties => ({
+  textAlign: "center",
+  fontFamily: tokens.font.mono,
+  fontVariantNumeric: "tabular-nums",
+  fontSize: 13,
+  ...extra,
+});
 
 function HeaderRow() {
   return (
@@ -88,41 +173,46 @@ function HeaderRow() {
         gridTemplateColumns: GRID,
         alignItems: "center",
         gap: 4,
-        padding: "0 16px 8px",
+        padding: "0 4px 10px",
+        fontFamily: tokens.font.mono,
         fontSize: 11,
         fontWeight: 600,
-        letterSpacing: 0.5,
+        letterSpacing: "0.08em",
         textTransform: "uppercase",
-        color: COLORS.textTertiary,
+        color: tokens.color.textMuted,
+        borderBottom: `1px solid ${tokens.color.border}`,
       }}
     >
       <span style={{ textAlign: "center" }}>#</span>
       <span>Team</span>
       {STAT_COLS.map((c) => (
-        <span key={c.key} className={c.key === "played" ? undefined : "as-hide-sm"} style={{ textAlign: "center" }}>
+        <span
+          key={c.key}
+          className={c.hideSm ? "st-hide-sm" : undefined}
+          style={{ textAlign: "center" }}
+        >
           {c.label}
         </span>
       ))}
-      <span style={{ textAlign: "right" }}>PTS</span>
+      <span style={{ textAlign: "right", color: tokens.color.textSecondary }}>PTS</span>
     </div>
   );
 }
 
 function TeamRow({ row, rank, qualified }: { row: StandingRow; rank: number; qualified: boolean }) {
-  const flag = flagEmoji(row.team);
   return (
     <div
-      className="as-row"
+      className="st-row"
       style={{
         display: "grid",
         gridTemplateColumns: GRID,
         alignItems: "center",
         gap: 4,
-        padding: "12px 16px",
-        borderTop: `1px solid ${COLORS.divider}`,
+        padding: "11px 4px",
+        borderTop: `1px solid ${tokens.color.border}`,
       }}
     >
-      {/* Rank with qualification accent */}
+      {/* Rank + qualification accent bar */}
       <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
         <span
           aria-hidden
@@ -130,64 +220,85 @@ function TeamRow({ row, rank, qualified }: { row: StandingRow; rank: number; qua
             width: 3,
             height: 18,
             borderRadius: 2,
-            background: qualified ? COLORS.accentGreen : "transparent",
+            background: qualified ? tokens.color.primary : "transparent",
           }}
         />
         <span
           style={{
-            fontSize: 14,
-            fontWeight: 600,
-            color: qualified ? COLORS.text : COLORS.textSecondary,
+            fontFamily: tokens.font.mono,
             fontVariantNumeric: "tabular-nums",
+            fontSize: 13,
+            fontWeight: 600,
+            color: qualified ? tokens.color.primary : tokens.color.textMuted,
           }}
         >
           {rank}
         </span>
       </span>
 
-      {/* Flag + bold team code */}
+      {/* Crest + code (+ full name) + form */}
       <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-        {flag && <span style={{ fontSize: 22, lineHeight: 1 }}>{flag}</span>}
-        <span
-          style={{
-            fontSize: 16,
-            fontWeight: 700,
-            color: COLORS.text,
-            letterSpacing: 0.2,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {row.team}
+        <Flag code={row.team} crest={row.crest} size={20} />
+        <span style={{ display: "flex", flexDirection: "column", minWidth: 0, lineHeight: 1.2 }}>
+          <span
+            style={{
+              fontFamily: tokens.font.display,
+              fontWeight: 700,
+              fontSize: 15,
+              letterSpacing: "0.01em",
+              color: tokens.color.textPrimary,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {row.team}
+          </span>
+          {row.team_name && (
+            <span
+              className="st-hide-sm"
+              style={{
+                fontFamily: tokens.font.display,
+                fontSize: 11,
+                color: tokens.color.textMuted,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {row.team_name}
+            </span>
+          )}
         </span>
+        {row.form && (
+          <span className="st-hide-sm" style={{ marginLeft: "auto", paddingLeft: 8 }}>
+            <FormChips form={row.form} />
+          </span>
+        )}
       </span>
 
-      {/* Secondary stats — muted */}
+      {/* Minor stats */}
       {STAT_COLS.map((c) => (
         <span
           key={c.key}
-          className={c.key === "played" ? undefined : "as-hide-sm"}
-          style={{
-            textAlign: "center",
-            fontSize: 14,
-            color: COLORS.textSecondary,
-            fontVariantNumeric: "tabular-nums",
-          }}
+          className={c.hideSm ? "st-hide-sm" : undefined}
+          style={numCell({
+            color: c.strong ? tokens.color.textSecondary : tokens.color.textMuted,
+            fontWeight: c.strong ? 600 : 400,
+          })}
         >
-          {row[c.key]}
+          {statValue(row, c.key)}
         </span>
       ))}
 
       {/* Dominant PTS column */}
       <span
-        style={{
+        style={numCell({
           textAlign: "right",
-          fontSize: 17,
+          fontSize: 16,
           fontWeight: 800,
-          color: COLORS.text,
-          fontVariantNumeric: "tabular-nums",
-        }}
+          color: tokens.color.textPrimary,
+        })}
       >
         {row.points}
       </span>
@@ -197,51 +308,48 @@ function TeamRow({ row, rank, qualified }: { row: StandingRow; rank: number; qua
 
 function GroupCard({ group }: { group: Group }) {
   return (
-    <section style={{ marginBottom: 28 }} aria-label={`Group ${group.letter}`}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          gap: 8,
-          margin: "0 4px 12px",
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: COLORS.text, letterSpacing: -0.3 }}>
-          Group {group.letter}
-        </h2>
-      </div>
-      <div
-        style={{
-          background: COLORS.card,
-          border: `1px solid ${COLORS.cardBorder}`,
-          borderRadius: 18,
-          padding: "16px 0 6px",
-          boxShadow: "0 1px 0 rgba(255,255,255,0.04), 0 12px 32px rgba(0,0,0,0.5)",
-          overflow: "hidden",
-        }}
-      >
-        <HeaderRow />
-        {group.rows.map((row, i) => (
-          <TeamRow key={row.team} row={row} rank={i + 1} qualified={i < 2} />
-        ))}
-      </div>
-    </section>
+    <Panel
+      hoverLift
+      title={`Group ${group.letter}`}
+      badge={<Badge tone="outline">{group.rows.length} teams</Badge>}
+    >
+      <HeaderRow />
+      {group.rows.map((row, i) => (
+        <TeamRow key={row.team} row={row} rank={row.position ?? i + 1} qualified={i < 2} />
+      ))}
+    </Panel>
   );
 }
 
+// ---------------------------------------------------------------------------
+// App
+// ---------------------------------------------------------------------------
+
 export default function App() {
+  useAuraFonts();
   useInjectedStyle();
+
   const [rows, setRows] = useState<StandingRow[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let alive = true;
     const load = () =>
       fetch(`${BFF}/bff/standings`)
         .then((r) => r.json())
-        .then((e: TimestampedEnvelope<StandingRow[]>) => setRows(e.data))
-        .catch(() => {});
+        .then((e: TimestampedEnvelope<StandingRow[]>) => {
+          if (alive && Array.isArray(e.data)) setRows(e.data);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (alive) setLoading(false);
+        });
     load();
     const timer = setInterval(load, POLL_MS);
-    return () => clearInterval(timer);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
   }, []);
 
   const groups = useMemo(() => groupByDivision(rows), [rows]);
@@ -249,52 +357,44 @@ export default function App() {
   return (
     <div
       style={{
-        minHeight: "100vh",
-        background: COLORS.bg,
-        color: COLORS.text,
-        fontFamily: FONT,
-        WebkitFontSmoothing: "antialiased",
+        background: tokens.color.background,
+        minHeight: "100%",
+        fontFamily: tokens.font.display,
+        color: tokens.color.textPrimary,
+        padding: "32px 24px 64px",
+        boxSizing: "border-box",
       }}
     >
-      <div className="as-grid">
-        {/* Apple Sports-style header */}
-        <header style={{ padding: "40px 4px 28px" }}>
-          <p
-            style={{
-              margin: "0 0 4px",
-              fontSize: 13,
-              fontWeight: 600,
-              letterSpacing: 0.6,
-              textTransform: "uppercase",
-              color: COLORS.accentGreen,
-            }}
-          >
-            FIFA World Cup
-          </p>
-          <h1 style={{ margin: 0, fontSize: 40, fontWeight: 800, letterSpacing: -1, color: COLORS.text }}>
-            Standings
-          </h1>
-        </header>
+      <div style={{ maxWidth: 880, margin: "0 auto" }}>
+        <SectionTitle
+          eyebrow="FIFA World Cup"
+          title="Standings"
+          description="All 12 groups — points, goals and recent form, updated live from the official feed."
+          aside={
+            <Badge tone="primary">Top 2 advance</Badge>
+          }
+          style={{ marginBottom: 28 }}
+        />
 
-        {groups.length === 0 ? (
-          <div
-            style={{
-              background: COLORS.card,
-              border: `1px solid ${COLORS.cardBorder}`,
-              borderRadius: 18,
-              padding: 32,
-              textAlign: "center",
-              color: COLORS.textSecondary,
-              fontSize: 15,
-            }}
-          >
-            No standings yet.
-          </div>
+        {loading && groups.length === 0 ? (
+          <Panel>
+            <div style={{ color: tokens.color.textSecondary, padding: "8px 0" }}>
+              Loading standings…
+            </div>
+          </Panel>
+        ) : groups.length === 0 ? (
+          <Panel>
+            <div style={{ color: tokens.color.textSecondary, padding: "8px 0" }}>
+              No standings yet.
+            </div>
+          </Panel>
         ) : (
           <>
-            {groups.map((g) => (
-              <GroupCard key={g.letter} group={g} />
-            ))}
+            <div style={{ display: "grid", gap: 24 }}>
+              {groups.map((g) => (
+                <GroupCard key={g.letter} group={g} />
+              ))}
+            </div>
 
             {/* Legend for the qualification accent */}
             <div
@@ -302,14 +402,18 @@ export default function App() {
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
-                margin: "8px 4px 0",
-                color: COLORS.textSecondary,
-                fontSize: 13,
+                margin: "20px 4px 0",
+                fontFamily: tokens.font.mono,
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: tokens.color.textMuted,
               }}
             >
               <span
                 aria-hidden
-                style={{ width: 3, height: 14, borderRadius: 2, background: COLORS.accentGreen }}
+                style={{ width: 3, height: 14, borderRadius: 2, background: tokens.color.primary }}
               />
               <span>Top 2 advance to the knockout stage</span>
             </div>
