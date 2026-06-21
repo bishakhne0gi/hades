@@ -36,18 +36,20 @@ pnpm install            # first time only
 pnpm --filter @wc/bff dev
 ```
 
-**3. All five micro-frontends:**
+**3. All five micro-frontends — with hot reload (HMR):**
 ```bash
 cd worldcup-hub
-pnpm build              # build remotes so remoteEntry.js exists (Module Federation)
-pnpm preview            # shell:5000 + remotes:5001-5004
+pnpm install            # first time only
+pnpm dev:web            # shell:5000 + remotes:5001-5004, all with HMR
 ```
 
 **Open http://localhost:5000** — live scoreboard (WebSocket), commentary (SSE), standings (polling),
-news, and the Core Web Vitals HUD.
+news, and the Core Web Vitals HUD. Edit any micro-frontend (or the shell) and the change hot-reloads
+instantly — no rebuild.
 
-> Why `build` then `preview`? Module Federation in Vite is most reliable served from built output.
-> For live-editing you can use `pnpm dev` instead, but rebuild remotes after changes.
+> We use **`@module-federation/vite`**, which runs the host *and* remotes under `vite dev` with HMR
+> (the older `@originjs` plugin couldn't run the host in dev). For a production-like build instead,
+> use `pnpm build && pnpm preview`.
 
 Stop the backend: `cd worldcup-hub/infra/docker && docker compose down`.
 

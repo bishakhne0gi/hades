@@ -6,6 +6,7 @@
   "packageManager": "pnpm@10.28.1",
   "scripts": {
     "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=@wc/shell --filter=@wc/mfe-scoreboard --filter=@wc/mfe-match-center --filter=@wc/mfe-standings --filter=@wc/mfe-news",
     "build": "turbo run build",
     "preview": "turbo run preview",
     "typecheck": "turbo run typecheck"
