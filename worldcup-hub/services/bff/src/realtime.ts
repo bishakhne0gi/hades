@@ -27,13 +27,22 @@ interface IncomingEvent extends LiveState {
 
 const live = new Map<number, LiveState>();
 const commentary = new Map<number, MatchEvent[]>();
+const lastSeen = new Map<number, number>();
+// Only show fixtures whose source is still publishing — so when you switch data
+// sources (or a match's source goes quiet), stale fixtures drop off automatically.
+const FRESH_MS = 90_000;
+
+function freshFixtures(): Array<[number, LiveState]> {
+  const cutoff = Date.now() - FRESH_MS;
+  return [...live.entries()].filter(([id]) => (lastSeen.get(id) ?? 0) >= cutoff);
+}
 
 /** Bus events: "scoreboard" (any change) and `match:<id>` (one commentary line). */
 export const bus = new EventEmitter();
 bus.setMaxListeners(0);
 
 export function scoreboardSnapshot(): ScoreboardMatch[] {
-  return [...live.entries()]
+  return freshFixtures()
     .sort(([a], [b]) => a - b)
     .map(([fixture_id, s]) => ({
       fixture_id,
@@ -56,7 +65,7 @@ export function computeStandings(): StandingRow[] {
     }
     return row;
   };
-  for (const s of live.values()) {
+  for (const [, s] of freshFixtures()) {
     const h = ensure(s.home, s.group);
     const a = ensure(s.away, s.group);
     h.played += 1;
@@ -87,6 +96,7 @@ export function recentCommentary(fixtureId: number): MatchEvent[] {
 
 function applyEvent(ev: IncomingEvent): void {
   if (ev.type === "kickoff") commentary.set(ev.fixture_id, []);
+  lastSeen.set(ev.fixture_id, Date.now());
   live.set(ev.fixture_id, {
     home: ev.home,
     away: ev.away,

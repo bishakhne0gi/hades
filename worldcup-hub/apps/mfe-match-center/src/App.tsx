@@ -3,11 +3,9 @@
 // lines. The fixture title comes from a one-off REST call; the feed is SSE.
 import { useEffect, useRef, useState } from "react";
 import { Panel, LiveBadge } from "@wc/ui";
-import type { MatchEvent, TimestampedEnvelope } from "@wc/types";
+import type { MatchEvent, ScoreboardMatch, TimestampedEnvelope } from "@wc/types";
 
 const BFF = import.meta.env.VITE_BFF_URL ?? "http://localhost:8080";
-const FIXTURE_ID = 1;
-type MatchMeta = { fixture: { id: number; home: string; away: string; group: string } };
 
 export default function App() {
   const [title, setTitle] = useState("Match Center");
@@ -16,23 +14,36 @@ export default function App() {
   const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
-    fetch(`${BFF}/bff/match/${FIXTURE_ID}`)
-      .then((r) => r.json())
-      .then((e: TimestampedEnvelope<MatchMeta>) => setTitle(`${e.data.fixture.home} vs ${e.data.fixture.away}`))
-      .catch(() => {});
+    let es: EventSource | null = null;
 
-    const es = new EventSource(`${BFF}/bff/sse/match/${FIXTURE_ID}`);
-    es.onopen = () => setLive(true);
-    es.onerror = () => setLive(false);
-    es.onmessage = (m) => {
-      try {
-        const ev = JSON.parse(m.data) as MatchEvent;
-        setEvents((prev) => [...prev.slice(-60), ev]);
-      } catch {
-        /* ignore */
-      }
-    };
-    return () => es.close();
+    // Pick whatever the first live fixture is (id is 1 in sim mode, a real id in
+    // real-data mode) instead of hard-coding it.
+    fetch(`${BFF}/bff/scoreboard`)
+      .then((r) => r.json())
+      .then((e: TimestampedEnvelope<ScoreboardMatch[]>) => {
+        const first = e.data[0];
+        if (!first) {
+          setTitle("No live match");
+          return;
+        }
+        const id = first.fixture_id;
+        setTitle(`${first.home} vs ${first.away}`);
+
+        es = new EventSource(`${BFF}/bff/sse/match/${id}`);
+        es.onopen = () => setLive(true);
+        es.onerror = () => setLive(false);
+        es.onmessage = (m) => {
+          try {
+            const ev = JSON.parse(m.data) as MatchEvent;
+            setEvents((prev) => [...prev.slice(-60), ev]);
+          } catch {
+            /* ignore */
+          }
+        };
+      })
+      .catch(() => setTitle("No live match"));
+
+    return () => es?.close();
   }, []);
 
   useEffect(() => {

@@ -41,6 +41,7 @@ services:
       # Flip to real data: set DATA_SOURCE=real and FOOTBALL_API_KEY in a .env file
       # (next to this compose file). Defaults keep the always-on simulator.
       DATA_SOURCE: ${DATA_SOURCE:-sim}
+      THESPORTSDB_LEAGUE: ${THESPORTSDB_LEAGUE:-4328}
       FOOTBALL_API_KEY: ${FOOTBALL_API_KEY:-}
       FOOTBALL_COMPETITION: ${FOOTBALL_COMPETITION:-WC}
       POLL_INTERVAL: ${POLL_INTERVAL:-20}

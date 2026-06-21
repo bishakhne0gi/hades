@@ -55,46 +55,43 @@ Stop the backend: `cd worldcup-hub/infra/docker && docker compose down`.
 
 ## Using REAL match data (instead of the simulator)
 
-By default the panels show the **simulator's** always-on matches. To use a **real football feed**,
-flip the data source — thanks to the ports/adapters boundary, nothing else changes (same Redis
-payload, same BFF, same UI).
+By default the panels show the **simulator's** always-on matches. There are two real-data sources —
+thanks to the ports/adapters boundary, switching changes nothing else (same Redis payload, BFF, UI).
+The Match Center auto-picks whatever the first live fixture is.
 
-**1. Get a free API token** at <https://www.football-data.org/client/register> (free tier: 10 req/min,
-selected competitions).
+### Option A — TheSportsDB (recommended: REAL data, **no key, no signup**)
 
-**2. Tell the simulator to use it.** Create a `.env` next to the compose file:
+```bash
+# 1) stop the sim-mode simulator if running, then run it in thesportsdb mode:
+cd worldcup-hub/services/simulator
+DATA_SOURCE=thesportsdb REDIS_URL=redis://localhost:6379 \
+  ./.venv/bin/python -m uvicorn app.main:app --port 9000
+# 2) (re)start the BFF and frontends as usual.
+```
+Or via Docker: put `DATA_SOURCE=thesportsdb` in `infra/docker/.env`, then `docker compose up -d --build`.
+
+You'll immediately see **real teams and real scores** (e.g. “West Ham United 3–0 Leeds United”).
+Pick a different competition with `THESPORTSDB_LEAGUE` (4328 = Premier League; the value depends on
+what's in season). Free-tier data is recent results + upcoming fixtures, not minute-by-minute live.
+
+### Option B — football-data.org (LIVE matches, needs a free token)
+
+1. Get a token at <https://www.football-data.org/client/register> (free: 10 req/min).
+2. Configure it:
 ```bash
 cd worldcup-hub/infra/docker
-cp .env.example .env
-# edit .env:  DATA_SOURCE=real  and  FOOTBALL_API_KEY=<your token>
-#             FOOTBALL_COMPETITION=WC   (or CL, PL, …)
-docker compose up -d --build    # rebuild so the simulator picks up real mode
+cp .env.example .env      # set DATA_SOURCE=real, FOOTBALL_API_KEY=<token>, FOOTBALL_COMPETITION=WC
+docker compose up -d --build
 ```
-Or run the simulator locally with env vars:
-```bash
-cd worldcup-hub/services/simulator
-DATA_SOURCE=real FOOTBALL_API_KEY=<token> FOOTBALL_COMPETITION=WC \
-  REDIS_URL=redis://localhost:6379 ./.venv/bin/python -m uvicorn app.main:app --port 9000
-```
+Live scores stream while a real match is **in play**; otherwise it shows upcoming/recent fixtures.
 
-**3. Run the BFF + frontends as usual** — the scoreboard now shows **real teams and live scores**.
-
-**How it works:** in real mode the simulator polls
-`GET /v4/competitions/{COMP}/matches` (header `X-Auth-Token`), normalises each match to the same
-self-describing payload `{fixture_id, home, away, group, home_score, away_score, minute, status, text}`,
-and publishes it to Redis — exactly the shape the simulator already emits. The BFF builds the
-scoreboard, standings and commentary straight from those messages.
-
-**Notes & limits:**
-- Live matches only stream when a real match is **in play**. If none are live, the feed shows a few
-  upcoming/recent fixtures (real teams) so the UI isn't empty.
-- The free tier doesn't give minute-by-minute goal events, so the commentary feed is score/state
-  updates rather than per-goal lines.
-- Keep `POLL_INTERVAL >= 10` to respect the rate limit.
-- Switch back anytime: set `DATA_SOURCE=sim` (or remove `.env`) and restart.
-- Want a different provider (API-Football, TheSportsDB)? Add a new adapter alongside `real_api.py`
-  implementing the same `fetch_live_states()` — the ports/adapters seam means that's the only file
-  you touch.
+### Notes
+- **After switching sources, restart the simulator and BFF** (or wait ~90 s — the BFF evicts fixtures
+  whose source has gone quiet, so stale matches drop off automatically).
+- Keep `POLL_INTERVAL >= 10` to respect free-tier rate limits.
+- Switch back: `DATA_SOURCE=sim` (or remove `.env`) and restart.
+- Add another provider (API-Football, …)? Drop a new adapter next to `thesportsdb.py`/`real_api.py`
+  implementing the same `fetch_live_states()` — that's the only file you touch.
 
 ## Optional: the edge (Phase 3)
 

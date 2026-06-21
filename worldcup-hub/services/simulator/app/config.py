@@ -3,8 +3,9 @@ import os
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
-# "sim"  → deterministic match simulator (default, always on, no keys).
-# "real" → poll a real football API (football-data.org) for live matches.
+# "sim"         → deterministic match simulator (default, always on, no keys).
+# "thesportsdb" → REAL match data, NO key required (free test key, recent results).
+# "real"        → football-data.org live matches (needs a free FOOTBALL_API_KEY).
 DATA_SOURCE = os.getenv("DATA_SOURCE", "sim").lower()
 
 # ── Simulator (sim mode) ────────────────────────────────────────────────────
@@ -26,3 +27,9 @@ FOOTBALL_API_KEY = os.getenv("FOOTBALL_API_KEY", "")
 FOOTBALL_COMPETITION = os.getenv("FOOTBALL_COMPETITION", "WC")
 # Seconds between polls — keep ≥ 10s to respect the free tier (10 req/min).
 POLL_INTERVAL = float(os.getenv("POLL_INTERVAL", "20"))
+
+# ── TheSportsDB (real data, no key needed) ──────────────────────────────────
+THESPORTSDB_BASE = os.getenv("THESPORTSDB_BASE", "https://www.thesportsdb.com/api/v1/json")
+THESPORTSDB_KEY = os.getenv("THESPORTSDB_KEY", "123")  # free public test key
+# League id: 4328 = English Premier League. (FIFA World Cup populates during the tournament.)
+THESPORTSDB_LEAGUE = os.getenv("THESPORTSDB_LEAGUE", "4328")

@@ -9,6 +9,7 @@ import redis.asyncio as redis
 
 from app.adapters.real_api import RealApiSource
 from app.adapters.simulated import SimulatedSource
+from app.adapters.thesportsdb import TheSportsDbSource
 from app.config import (
     DATA_SOURCE,
     DEMO_FIXTURES,
@@ -19,6 +20,9 @@ from app.config import (
     LOOP_PAUSE,
     POLL_INTERVAL,
     REDIS_URL,
+    THESPORTSDB_BASE,
+    THESPORTSDB_KEY,
+    THESPORTSDB_LEAGUE,
 )
 
 CHANNEL = "match.events"
@@ -64,18 +68,17 @@ async def _run_sim(client: "redis.Redis") -> None:
     await asyncio.gather(*[_play_fixture(client, f) for f in DEMO_FIXTURES])
 
 
-# ── Real feed mode ──────────────────────────────────────────────────────────
-async def _run_real(client: "redis.Redis") -> None:
-    source = RealApiSource(FOOTBALL_API_BASE, FOOTBALL_API_KEY, FOOTBALL_COMPETITION)
-    print(f"[simulator] real mode: polling {FOOTBALL_COMPETITION} every {POLL_INTERVAL}s", flush=True)
+# ── Real feed mode (any adapter with fetch_live_states) ─────────────────────
+async def _run_real(client: "redis.Redis", source, label: str) -> None:
+    print(f"[simulator] {label} mode: polling every {POLL_INTERVAL}s", flush=True)
     while True:
         try:
             states = await source.fetch_live_states()
-            print(f"[simulator] real feed: published {len(states)} match states", flush=True)
+            print(f"[simulator] {label}: published {len(states)} match states", flush=True)
             for s in states:
                 await _publish(client, {**s, "type": "commentary", "team_code": None})
         except Exception as exc:  # noqa: BLE001 — keep polling on transient errors
-            print(f"[simulator] real feed error: {exc}", flush=True)
+            print(f"[simulator] {label} error: {exc}", flush=True)
         await asyncio.sleep(POLL_INTERVAL)
 
 
@@ -87,7 +90,11 @@ async def run_publishers() -> None:
         print(f"[simulator] Redis unavailable ({exc}); realtime publishing disabled")
         return
 
-    if DATA_SOURCE == "real":
-        await _run_real(client)
+    if DATA_SOURCE == "thesportsdb":
+        source = TheSportsDbSource(THESPORTSDB_KEY, THESPORTSDB_LEAGUE, THESPORTSDB_BASE)
+        await _run_real(client, source, "thesportsdb")
+    elif DATA_SOURCE == "real":
+        source = RealApiSource(FOOTBALL_API_BASE, FOOTBALL_API_KEY, FOOTBALL_COMPETITION)
+        await _run_real(client, source, "football-data")
     else:
         await _run_sim(client)
