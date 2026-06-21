@@ -1,9 +1,17 @@
 # Author: Bishakh
+import asyncio
 from dataclasses import asdict
 from fastapi import FastAPI
 from app.adapters.simulated import SimulatedSource
+from app.realtime import run_publishers
 
 app = FastAPI(title="World Cup Hub — Match Simulator")
+
+
+@app.on_event("startup")
+async def _start_realtime() -> None:
+    # Fire-and-forget the live publisher; it no-ops if Redis is unavailable.
+    asyncio.create_task(run_publishers())
 
 
 @app.get("/health")

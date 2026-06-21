@@ -208,22 +208,34 @@ importers:
       '@hono/node-server':
         specifier: ^1.13.7
         version: 1.19.14(hono@4.12.26)
+      '@hono/node-ws':
+        specifier: ^1.1.1
+        version: 1.3.1(@hono/node-server@1.19.14(hono@4.12.26))(hono@4.12.26)
       '@wc/types':
         specifier: workspace:*
         version: link:../../packages/types
       hono:
         specifier: ^4.6.14
         version: 4.12.26
+      redis:
+        specifier: ^4.7.0
+        version: 4.7.1
     devDependencies:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.0
+      '@types/ws':
+        specifier: ^8.5.13
+        version: 8.18.1
       tsx:
         specifier: ^4.19.2
         version: 4.22.4
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
+      ws:
+        specifier: ^8.18.0
+        version: 8.21.0
 
 packages:
 
@@ -628,6 +640,13 @@ packages:
     peerDependencies:
       hono: ^4
 
+  '@hono/node-ws@1.3.1':
+    resolution: {integrity: sha512-vo/MwCnpJAVHBkGzWjCJ28wF45fYHAfbPZcH2rodZODHtch2GHA94KtMfusmVycTUtsLAsaNsHhtY6P8X3RQsA==}
+    engines: {node: '>=18.14.1'}
+    peerDependencies:
+      '@hono/node-server': ^1.19.11
+      hono: ^4.6.0
+
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
 
@@ -647,6 +666,35 @@ packages:
   '@originjs/vite-plugin-federation@1.4.1':
     resolution: {integrity: sha512-Uo08jW5pj1t58OUKuZNkmzcfTN2pqeVuAWCCiKf/75/oll4Efq4cHOqSE1FXMlvwZNGDziNdDyBbQ5IANem3CQ==}
     engines: {node: '>=14.0.0', pnpm: '>=7.0.1'}
+
+  '@redis/bloom@1.2.0':
+    resolution: {integrity: sha512-HG2DFjYKbpNmVXsa0keLHp/3leGJz1mjh09f2RLGGLQZzSHpkmZWuwJbAvo3QcRY8p80m5+ZdXZdYOSBLlp7Cg==}
+    peerDependencies:
+      '@redis/client': ^1.0.0
+
+  '@redis/client@1.6.1':
+    resolution: {integrity: sha512-/KCsg3xSlR+nCK8/8ZYSknYxvXHwubJrU82F3Lm1Fp6789VQ0/3RJKfsmRXjqfaTA++23CvC3hqmqe/2GEt6Kw==}
+    engines: {node: '>=14'}
+
+  '@redis/graph@1.1.1':
+    resolution: {integrity: sha512-FEMTcTHZozZciLRl6GiiIB4zGm5z5F3F6a6FZCyrfxdKOhFlGkiAqlexWMBzCi4DcRoyiOsuLfW+cjlGWyExOw==}
+    peerDependencies:
+      '@redis/client': ^1.0.0
+
+  '@redis/json@1.0.7':
+    resolution: {integrity: sha512-6UyXfjVaTBTJtKNG4/9Z8PSpKE6XgSyEb8iwaqDcy+uKrd/DGYHTWkUdnQDyzm727V7p21WUMhsqz5oy65kPcQ==}
+    peerDependencies:
+      '@redis/client': ^1.0.0
+
+  '@redis/search@1.2.0':
+    resolution: {integrity: sha512-tYoDBbtqOVigEDMAcTGsRlMycIIjwMCgD8eR2t0NANeQmgK/lvxNAvYyb6bZDD4frHRhIHkJu2TBRvB0ERkOmw==}
+    peerDependencies:
+      '@redis/client': ^1.0.0
+
+  '@redis/time-series@1.1.0':
+    resolution: {integrity: sha512-c1Q99M5ljsIuc4YdaCwfUEXsofakb9c8+Zse2qxTadu8TalLXuAESzLvFAvNVbkmSlvlzIQOLpBCmWI9wTOt+g==}
+    peerDependencies:
+      '@redis/client': ^1.0.0
 
   '@rolldown/pluginutils@1.0.0-beta.27':
     resolution: {integrity: sha512-+d0F4MKMCbeVUJwG96uQ4SgAznZNSq93I3V+9NHA4OpvqG8mRCpGdKmK8l/dl02h2CCDHwW2FqilnTyDcAnqjA==}
@@ -832,6 +880,9 @@ packages:
   '@types/react@19.2.17':
     resolution: {integrity: sha512-MXfmqaVPEVgkBT/aY0aGCkRWWtByiYQXo3xdQ8r5RzuFrPiRn8Gar2tQdXSUQ2GKV3bkXckek89V8wQBY2Q/Aw==}
 
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
+
   '@vitejs/plugin-react@4.7.0':
     resolution: {integrity: sha512-gUu9hwfWvvEDBBmgtAowQCojwZmJ5mcLn3aufeCsitijs3+f2NsrPtlAWIR6OPiqljl96GVCUbLe0HyqIpVaoA==}
     engines: {node: ^14.18.0 || >=16.0.0}
@@ -850,6 +901,10 @@ packages:
 
   caniuse-lite@1.0.30001799:
     resolution: {integrity: sha512-hG1bReV+OUU+MOqK4t/ZWI0tZOyz3rqS9XuhOUz1cIcbwBKjOyJEJuw9ER5JuNyqxNk8u/JUVbGibBOL1yrjFw==}
+
+  cluster-key-slot@1.1.2:
+    resolution: {integrity: sha512-RMr0FhtfXemyinomL4hrWcYJxmX6deFdCxpJzhDttxgO1+bcCnkk+9drydLVDmAMG7NE6aN/fl4F7ucU/90gAA==}
+    engines: {node: '>=0.10.0'}
 
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
@@ -899,6 +954,10 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
+
+  generic-pool@3.9.0:
+    resolution: {integrity: sha512-hymDOu5B53XvN4QT9dBmZxPX4CWhBPPLguTZ9MMFeFa/Kg0xWVfylOVNlJji/E7yTZWFd/q9GO5TxDLq156D7g==}
+    engines: {node: '>= 4'}
 
   gensync@1.0.0-beta.2:
     resolution: {integrity: sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg==}
@@ -963,6 +1022,9 @@ packages:
   react@19.2.7:
     resolution: {integrity: sha512-HNe9WslTbXmFK8o8cmwgAeJFSBvt1bPdHCVKtaaV+WlAN36mpT4hcRpwbf3fY56ar2oIXzsBpOAiIRHAdY0OlQ==}
     engines: {node: '>=0.10.0'}
+
+  redis@4.7.1:
+    resolution: {integrity: sha512-S1bJDnqLftzHXHP8JsT5II/CtHWQrASX5K96REjWjlmWKrviSOLWmM7QnRLstAWsu1VBBV1ffV6DzCvxNP0UJQ==}
 
   rollup@4.62.2:
     resolution: {integrity: sha512-RFnrW4lhXA3s3eqHDZvN654g8OTjzRfqpIRJYczCGB6HzphckVAi/Qh4tbPUbRuDi7s1Llv8g/NspLkttY3gTA==}
@@ -1047,8 +1109,23 @@ packages:
       yaml:
         optional: true
 
+  ws@8.21.0:
+    resolution: {integrity: sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   yallist@3.1.1:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
+
+  yallist@4.0.0:
+    resolution: {integrity: sha512-3wdGidZyq5PB084XLES5TpOSRA3wjXAlIWMhum2kRcv/41Sn2emQ0dycQW4uZXLejwKvg6EsvbdlVL+FYEct7A==}
 
 snapshots:
 
@@ -1324,6 +1401,15 @@ snapshots:
     dependencies:
       hono: 4.12.26
 
+  '@hono/node-ws@1.3.1(@hono/node-server@1.19.14(hono@4.12.26))(hono@4.12.26)':
+    dependencies:
+      '@hono/node-server': 1.19.14(hono@4.12.26)
+      hono: 4.12.26
+      ws: 8.21.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
@@ -1347,6 +1433,32 @@ snapshots:
     dependencies:
       estree-walker: 3.0.3
       magic-string: 0.27.0
+
+  '@redis/bloom@1.2.0(@redis/client@1.6.1)':
+    dependencies:
+      '@redis/client': 1.6.1
+
+  '@redis/client@1.6.1':
+    dependencies:
+      cluster-key-slot: 1.1.2
+      generic-pool: 3.9.0
+      yallist: 4.0.0
+
+  '@redis/graph@1.1.1(@redis/client@1.6.1)':
+    dependencies:
+      '@redis/client': 1.6.1
+
+  '@redis/json@1.0.7(@redis/client@1.6.1)':
+    dependencies:
+      '@redis/client': 1.6.1
+
+  '@redis/search@1.2.0(@redis/client@1.6.1)':
+    dependencies:
+      '@redis/client': 1.6.1
+
+  '@redis/time-series@1.1.0(@redis/client@1.6.1)':
+    dependencies:
+      '@redis/client': 1.6.1
 
   '@rolldown/pluginutils@1.0.0-beta.27': {}
 
@@ -1478,6 +1590,10 @@ snapshots:
     dependencies:
       csstype: 3.2.3
 
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 22.20.0
+
   '@vitejs/plugin-react@4.7.0(vite@6.4.3(@types/node@22.20.0)(tsx@4.22.4))':
     dependencies:
       '@babel/core': 7.29.7
@@ -1501,6 +1617,8 @@ snapshots:
       update-browserslist-db: 1.2.3(browserslist@4.28.2)
 
   caniuse-lite@1.0.30001799: {}
+
+  cluster-key-slot@1.1.2: {}
 
   convert-source-map@2.0.0: {}
 
@@ -1583,6 +1701,8 @@ snapshots:
   fsevents@2.3.3:
     optional: true
 
+  generic-pool@3.9.0: {}
+
   gensync@1.0.0-beta.2: {}
 
   hono@4.12.26: {}
@@ -1625,6 +1745,15 @@ snapshots:
   react-refresh@0.17.0: {}
 
   react@19.2.7: {}
+
+  redis@4.7.1:
+    dependencies:
+      '@redis/bloom': 1.2.0(@redis/client@1.6.1)
+      '@redis/client': 1.6.1
+      '@redis/graph': 1.1.1(@redis/client@1.6.1)
+      '@redis/json': 1.0.7(@redis/client@1.6.1)
+      '@redis/search': 1.2.0(@redis/client@1.6.1)
+      '@redis/time-series': 1.1.0(@redis/client@1.6.1)
 
   rollup@4.62.2:
     dependencies:
@@ -1706,4 +1835,8 @@ snapshots:
       fsevents: 2.3.3
       tsx: 4.22.4
 
+  ws@8.21.0: {}
+
   yallist@3.1.1: {}
+
+  yallist@4.0.0: {}

@@ -3,8 +3,11 @@
 // view-model for each micro-frontend, so the UI never over-fetches or sees raw
 // domain shapes. One route per panel.
 import { serve } from "@hono/node-server";
+import { createNodeWebSocket } from "@hono/node-ws";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { streamSSE } from "hono/streaming";
+import type { WSContext } from "hono/ws";
 import type {
   NewsItem,
   ScoreboardMatch,
@@ -12,9 +15,16 @@ import type {
   TimestampedEnvelope,
 } from "@wc/types";
 import { DEMO_FIXTURES, fetchEvents, tallyGoals } from "./upstream.js";
+import {
+  bus,
+  recentCommentary,
+  scoreboardSnapshot,
+  startRedisSubscriber,
+} from "./realtime.js";
 
 const app = new Hono();
 app.use("*", cors());
+const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
 
 const now = () => new Date().toISOString();
 function envelope<T>(data: T): TimestampedEnvelope<T> {
@@ -100,8 +110,59 @@ app.get("/bff/news", (c) => {
   return c.json(envelope(items));
 });
 
+// ── Real-time transports ───────────────────────────────────────────────────
+
+// Scoreboard → WebSocket: push the full snapshot on connect and on every change.
+const wsClients = new Set<WSContext>();
+bus.on("scoreboard", () => {
+  const msg = JSON.stringify({ data: scoreboardSnapshot() });
+  for (const ws of wsClients) {
+    try {
+      ws.send(msg);
+    } catch {
+      /* drop on send error */
+    }
+  }
+});
+
+app.get(
+  "/bff/ws/scoreboard",
+  upgradeWebSocket(() => ({
+    onOpen: (_evt, ws) => {
+      wsClients.add(ws);
+      ws.send(JSON.stringify({ data: scoreboardSnapshot() }));
+    },
+    onClose: (_evt, ws) => {
+      wsClients.delete(ws);
+    },
+  })),
+);
+
+// Match center → SSE: replay recent commentary, then stream new lines live.
+app.get("/bff/sse/match/:id", (c) => {
+  const id = Number(c.req.param("id"));
+  return streamSSE(c, async (stream) => {
+    for (const ev of recentCommentary(id)) {
+      await stream.writeSSE({ data: JSON.stringify(ev) });
+    }
+    const handler = (line: unknown) => {
+      stream.writeSSE({ data: JSON.stringify(line) }).catch(() => {});
+    };
+    bus.on(`match:${id}`, handler);
+    stream.onAbort(() => {
+      bus.off(`match:${id}`, handler);
+    });
+    while (!stream.aborted) {
+      await stream.sleep(15000);
+      await stream.writeSSE({ event: "ping", data: "1" });
+    }
+  });
+});
+
 const port = Number(process.env.PORT ?? 8080);
-serve({ fetch: app.fetch, port });
+const server = serve({ fetch: app.fetch, port });
+injectWebSocket(server);
+void startRedisSubscriber();
 console.log(`[bff] listening on http://localhost:${port}`);
 
 export { app };
