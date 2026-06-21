@@ -8,7 +8,7 @@ WORKDIR /repo
 COPY . .
 RUN pnpm install --frozen-lockfile=false
 RUN pnpm --filter @wc/bff build
-RUN pnpm --filter @wc/bff deploy --prod /out
+RUN pnpm --filter @wc/bff deploy --legacy --prod /out
 
 FROM node:22-slim
 WORKDIR /app

@@ -6,7 +6,7 @@ WORKDIR /repo
 COPY . .
 RUN pnpm install --frozen-lockfile=false
 RUN pnpm --filter @wc/edge build
-RUN pnpm --filter @wc/edge deploy --prod /out
+RUN pnpm --filter @wc/edge deploy --legacy --prod /out
 
 FROM node:22-slim
 WORKDIR /app
