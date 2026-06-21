@@ -1,7 +1,7 @@
 # Author: Bishakh
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.db.session import get_db
+from app.db.session import get_db, get_read_db
 from app.repositories.team_repository import TeamRepository
 from app.services.team_service import TeamService, DuplicateTeamCodeError
 from app.schemas.team import TeamCreate, TeamOut
@@ -10,7 +10,12 @@ router = APIRouter(prefix="/teams", tags=["teams"])
 
 
 def get_team_service(db: Session = Depends(get_db)) -> TeamService:
-    """Wire the dependency chain: session -> repository -> service."""
+    """Write path: primary session -> repository -> service."""
+    return TeamService(TeamRepository(db))
+
+
+def get_team_read_service(db: Session = Depends(get_read_db)) -> TeamService:
+    """Read path: replica session -> repository -> service."""
     return TeamService(TeamRepository(db))
 
 
@@ -27,5 +32,5 @@ def create_team(
 
 
 @router.get("", response_model=list[TeamOut])
-def list_teams(service: TeamService = Depends(get_team_service)) -> list[TeamOut]:
+def list_teams(service: TeamService = Depends(get_team_read_service)) -> list[TeamOut]:
     return service.list_teams()

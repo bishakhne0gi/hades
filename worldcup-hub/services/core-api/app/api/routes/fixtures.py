@@ -1,7 +1,7 @@
 # Author: Bishakh
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.db.session import get_db
+from app.db.session import get_db, get_read_db
 from app.repositories.fixture_repository import FixtureRepository
 from app.services.fixture_service import FixtureService, SameTeamError
 from app.schemas.fixture import FixtureCreate, FixtureOut
@@ -10,7 +10,12 @@ router = APIRouter(prefix="/fixtures", tags=["fixtures"])
 
 
 def get_fixture_service(db: Session = Depends(get_db)) -> FixtureService:
-    """Wire the dependency chain: session -> repository -> service."""
+    """Write path: primary session -> repository -> service."""
+    return FixtureService(FixtureRepository(db))
+
+
+def get_fixture_read_service(db: Session = Depends(get_read_db)) -> FixtureService:
+    """Read path: replica session -> repository -> service."""
     return FixtureService(FixtureRepository(db))
 
 
@@ -29,6 +34,6 @@ def create_fixture(
 
 @router.get("", response_model=list[FixtureOut])
 def list_fixtures(
-    service: FixtureService = Depends(get_fixture_service),
+    service: FixtureService = Depends(get_fixture_read_service),
 ) -> list[FixtureOut]:
     return service.list_fixtures()

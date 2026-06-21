@@ -12,6 +12,10 @@ class Settings:
     """
 
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./dev.db")
+    # Reads go to a replica when set; otherwise fall back to the primary URL.
+    read_database_url: str = os.getenv(
+        "READ_DATABASE_URL", os.getenv("DATABASE_URL", "sqlite:///./dev.db")
+    )
 
 
 settings = Settings()

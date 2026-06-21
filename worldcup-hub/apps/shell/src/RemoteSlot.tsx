@@ -21,11 +21,15 @@ class Boundary extends Component<{ name: string; children: ReactNode }, { failed
 }
 
 export function RemoteSlot({ name, Remote }: { name: string; Remote: ComponentType }) {
+  // CLS fix: reserve a min-height so the panel keeps its space while the remote
+  // loads — the layout doesn't jump when the federated module finally renders.
   return (
-    <Boundary name={name}>
-      <Suspense fallback={<div style={{ padding: 16, color: "#8b9bb4" }}>Loading {name}…</div>}>
-        <Remote />
-      </Suspense>
-    </Boundary>
+    <div style={{ minHeight: 220 }}>
+      <Boundary name={name}>
+        <Suspense fallback={<div style={{ padding: 16, color: "#8b9bb4" }}>Loading {name}…</div>}>
+          <Remote />
+        </Suspense>
+      </Boundary>
+    </div>
   );
 }

@@ -3,6 +3,7 @@
 // remotes at runtime via Module Federation.
 import { lazy } from "react";
 import { RemoteSlot } from "./RemoteSlot";
+import { VitalsHud } from "./VitalsHud";
 
 const Scoreboard = lazy(() => import("scoreboard/App"));
 const MatchCenter = lazy(() => import("matchCenter/App"));
@@ -33,6 +34,8 @@ export function App() {
         <RemoteSlot name="Standings" Remote={Standings} />
         <RemoteSlot name="News" Remote={News} />
       </main>
+
+      <VitalsHud />
     </div>
   );
 }

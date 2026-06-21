@@ -1,0 +1,113 @@
+# Author: Bishakh
+# The COMPLETE Phase-4 stack: edge → cdn/gateway → load balancer → core-api
+# replicas → Postgres primary + read replica, plus redis + simulator + bff.
+# Run: docker compose -f compose.full.yml up -d --build
+services:
+  # ── Data tier: primary + streaming read replica ──────────────────────────
+  postgres-primary:
+    image: bitnami/postgresql:16
+    environment:
+      POSTGRESQL_REPLICATION_MODE: master
+      POSTGRESQL_REPLICATION_USER: repl
+      POSTGRESQL_REPLICATION_PASSWORD: replpass
+      POSTGRESQL_USERNAME: worldcup
+      POSTGRESQL_PASSWORD: worldcup
+      POSTGRESQL_DATABASE: worldcup
+    volumes:
+      - pgprimary:/bitnami/postgresql
+
+  postgres-replica:
+    image: bitnami/postgresql:16
+    environment:
+      POSTGRESQL_REPLICATION_MODE: slave
+      POSTGRESQL_REPLICATION_USER: repl
+      POSTGRESQL_REPLICATION_PASSWORD: replpass
+      POSTGRESQL_MASTER_HOST: postgres-primary
+      POSTGRESQL_MASTER_PORT_NUMBER: "5432"
+      POSTGRESQL_USERNAME: worldcup
+      POSTGRESQL_PASSWORD: worldcup
+    depends_on:
+      - postgres-primary
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── App tier: two core-api replicas (writes→primary, reads→replica) ──────
+  core-api-1: &core_api
+    build: ../../services/core-api
+    environment:
+      DATABASE_URL: postgresql+psycopg://worldcup:worldcup@postgres-primary:5432/worldcup
+      READ_DATABASE_URL: postgresql+psycopg://worldcup:worldcup@postgres-replica:5432/worldcup
+    depends_on:
+      - postgres-primary
+      - postgres-replica
+  core-api-2:
+    <<: *core_api
+
+  # L7 load balancer in front of the core-api replicas.
+  lb:
+    image: nginx:1.27-alpine
+    volumes:
+      - ../nginx/lb.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - core-api-1
+      - core-api-2
+
+  simulator:
+    build: ../../services/simulator
+    environment:
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  bff:
+    build:
+      context: ../..
+      dockerfile: services/bff/Dockerfile
+    environment:
+      REDIS_URL: redis://redis:6379
+      CORE_API_URL: http://lb:8000
+      SIMULATOR_URL: http://simulator:9000
+      PORT: "8080"
+    depends_on:
+      - redis
+      - lb
+      - simulator
+
+  # API gateway — private door into the VPC (not published to the host).
+  gateway:
+    image: nginx:1.27-alpine
+    volumes:
+      - ../nginx/gateway.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - bff
+      - lb
+
+  edge:
+    build:
+      context: ../..
+      dockerfile: services/edge/Dockerfile
+    environment:
+      BFF_URL: http://gateway:8090
+      PORT: "8888"
+    depends_on:
+      - gateway
+
+  # CDN — caching reverse proxy, the public entry for cacheable traffic.
+  cdn:
+    image: nginx:1.27-alpine
+    volumes:
+      - ../nginx/cdn.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8081:8081"
+    depends_on:
+      - edge
+
+volumes:
+  pgprimary:

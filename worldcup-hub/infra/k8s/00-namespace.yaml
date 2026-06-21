@@ -1,0 +1,5 @@
+# Author: Bishakh
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: worldcup

@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 from app.main import app
 from app.db.base import Base
-from app.db.session import get_db
+from app.db.session import get_db, get_read_db
 
 # StaticPool keeps a single shared connection so the in-memory DB (and its
 # tables) is visible across threads — TestClient runs endpoints in a worker thread.
@@ -42,7 +42,9 @@ def client():
         finally:
             db.close()
 
+    # Both primary and replica point at the same in-memory DB in tests.
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_read_db] = override_get_db
     yield TestClient(app)
     app.dependency_overrides.clear()
     Base.metadata.drop_all(bind=engine)

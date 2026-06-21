@@ -1,0 +1,110 @@
+# Author: Bishakh
+# Data tier: Redis + Postgres primary + Postgres read replica.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: worldcup
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: redis }
+  template:
+    metadata:
+      labels: { app: redis }
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          readinessProbe:
+            exec: { command: ["redis-cli", "ping"] }
+            initialDelaySeconds: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: worldcup
+spec:
+  selector: { app: redis }
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-primary
+  namespace: worldcup
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: postgres-primary }
+  template:
+    metadata:
+      labels: { app: postgres-primary }
+    spec:
+      containers:
+        - name: postgres
+          image: bitnami/postgresql:16
+          env:
+            - { name: POSTGRESQL_REPLICATION_MODE, value: master }
+            - { name: POSTGRESQL_REPLICATION_USER, value: repl }
+            - { name: POSTGRESQL_REPLICATION_PASSWORD, value: replpass }
+            - { name: POSTGRESQL_USERNAME, value: worldcup }
+            - { name: POSTGRESQL_PASSWORD, value: worldcup }
+            - { name: POSTGRESQL_DATABASE, value: worldcup }
+          ports:
+            - containerPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-primary
+  namespace: worldcup
+spec:
+  selector: { app: postgres-primary }
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-replica
+  namespace: worldcup
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: postgres-replica }
+  template:
+    metadata:
+      labels: { app: postgres-replica }
+    spec:
+      containers:
+        - name: postgres
+          image: bitnami/postgresql:16
+          env:
+            - { name: POSTGRESQL_REPLICATION_MODE, value: slave }
+            - { name: POSTGRESQL_REPLICATION_USER, value: repl }
+            - { name: POSTGRESQL_REPLICATION_PASSWORD, value: replpass }
+            - { name: POSTGRESQL_MASTER_HOST, value: postgres-primary }
+            - { name: POSTGRESQL_MASTER_PORT_NUMBER, value: "5432" }
+            - { name: POSTGRESQL_USERNAME, value: worldcup }
+            - { name: POSTGRESQL_PASSWORD, value: worldcup }
+          ports:
+            - containerPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-replica
+  namespace: worldcup
+spec:
+  selector: { app: postgres-replica }
+  ports:
+    - port: 5432
+      targetPort: 5432

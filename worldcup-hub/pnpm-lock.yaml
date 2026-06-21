@@ -165,6 +165,9 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.7(react@19.2.7)
+      web-vitals:
+        specifier: ^4.2.4
+        version: 4.2.4
     devDependencies:
       '@originjs/vite-plugin-federation':
         specifier: ^1.3.6
@@ -1128,6 +1131,9 @@ packages:
       yaml:
         optional: true
 
+  web-vitals@4.2.4:
+    resolution: {integrity: sha512-r4DIlprAGwJ7YM11VZp4R884m0Vmgr6EAKe3P+kO0PPj3Unqyvv59rczf6UiGcb9Z8QxZVcqKNwv/g0WNdWwsw==}
+
   ws@8.21.0:
     resolution: {integrity: sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g==}
     engines: {node: '>=10.0.0'}
@@ -1853,6 +1859,8 @@ snapshots:
       '@types/node': 22.20.0
       fsevents: 2.3.3
       tsx: 4.22.4
+
+  web-vitals@4.2.4: {}
 
   ws@8.21.0: {}
 

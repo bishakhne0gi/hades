@@ -1,0 +1,66 @@
+# Author: Bishakh
+# core-api: 2 replicas behind a Service (the Service IS the load balancer in k8s),
+# autoscaled by an HPA. Writes go to the primary, reads to the replica.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-api
+  namespace: worldcup
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: core-api }
+  template:
+    metadata:
+      labels: { app: core-api }
+    spec:
+      containers:
+        - name: core-api
+          image: worldcup-core-api:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: DATABASE_URL, value: "postgresql+psycopg://worldcup:worldcup@postgres-primary:5432/worldcup" }
+            - { name: READ_DATABASE_URL, value: "postgresql+psycopg://worldcup:worldcup@postgres-replica:5432/worldcup" }
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 10
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits: { cpu: "500m", memory: "256Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-api
+  namespace: worldcup
+spec:
+  selector: { app: core-api }
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: core-api
+  namespace: worldcup
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: core-api
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

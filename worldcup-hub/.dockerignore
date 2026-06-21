@@ -1,0 +1,9 @@
+# Author: Bishakh
+**/node_modules
+**/dist
+**/.turbo
+**/.venv
+**/__pycache__
+**/*.tsbuildinfo
+**/dev.db
+.git
