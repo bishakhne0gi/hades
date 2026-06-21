@@ -63,6 +63,24 @@ Prerequisites: **Docker** running, **Node 20+**, **pnpm**.
 | scoreboard / match-center / standings / news | 5001–5004 | micro-frontends |
 | CDN (compose.full only) | 8081 | edge infra |
 
+> ### ⚠️ Inspecting Postgres with a GUI (TablePlus/pgAdmin) — and the production rollback
+> Postgres is **deliberately not published** to the host: only `core-api` (inside Docker) talks
+> to it via the internal hostname `postgres`. Redis *is* published (`6379`) because the
+> host-run BFF subscribes to it. To browse Postgres from a desktop GUI you must temporarily add
+> a port mapping to the `postgres` service:
+> ```yaml
+>   postgres:
+>     ports:
+>       - "5432:5432"   # dev only — map to "5433:5432" if 5432 is already taken (check: lsof -i :5432)
+> ```
+> **This is for local development only.** A published database port is reachable by anything
+> that can hit the host's network interface.
+> **🔒 Before going to production you MUST roll this back — remove the `ports:` mapping so
+> Postgres stays unexposed.** Production databases should never publish a port; only the
+> in-network services that need them should connect over the private network.
+> No GUI / no setup change? Inspect it from inside the container instead:
+> `docker compose exec postgres psql -U worldcup -d worldcup`.
+
 ---
 
 ## Recommended: 3-terminal local run
