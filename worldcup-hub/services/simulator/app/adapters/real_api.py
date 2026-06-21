@@ -47,6 +47,15 @@ class RealApiSource:
         # Fallback: show up to 6 scheduled/finished matches so the UI isn't empty.
         return normalised[:6]
 
+    @staticmethod
+    def _group(m: dict[str, Any]) -> str:
+        # World Cup: group like "GROUP_A" → "A"; knockout stage → short stage tag.
+        g = m.get("group")
+        if g:
+            return g.replace("GROUP_", "")
+        stage = (m.get("stage") or "").replace("_", " ").title()
+        return stage[:10] or "-"
+
     def _normalise(self, m: dict[str, Any]) -> dict[str, Any]:
         home = self._team_code(m.get("homeTeam", {}))
         away = self._team_code(m.get("awayTeam", {}))
@@ -59,7 +68,7 @@ class RealApiSource:
             "fixture_id": m.get("id", 0),
             "home": home,
             "away": away,
-            "group": (m.get("group") or "-"),
+            "group": self._group(m),
             "home_score": hs,
             "away_score": aw,
             "minute": minute,

@@ -55,35 +55,45 @@ Stop the backend: `cd worldcup-hub/infra/docker && docker compose down`.
 
 ## Using REAL match data (instead of the simulator)
 
-By default the panels show the **simulator's** always-on matches. There are two real-data sources —
-thanks to the ports/adapters boundary, switching changes nothing else (same Redis payload, BFF, UI).
+By default the panels show the **simulator's** always-on matches. To use real data, flip the data
+source — thanks to the ports/adapters boundary nothing else changes (same Redis payload, BFF, UI).
 The Match Center auto-picks whatever the first live fixture is.
 
-### Option A — TheSportsDB (recommended: REAL data, **no key, no signup**)
+### Option A — football-data.org → FIFA World Cup 2026 (recommended for the World Cup)
 
-```bash
-# 1) stop the sim-mode simulator if running, then run it in thesportsdb mode:
-cd worldcup-hub/services/simulator
-DATA_SOURCE=thesportsdb REDIS_URL=redis://localhost:6379 \
-  ./.venv/bin/python -m uvicorn app.main:app --port 9000
-# 2) (re)start the BFF and frontends as usual.
-```
-Or via Docker: put `DATA_SOURCE=thesportsdb` in `infra/docker/.env`, then `docker compose up -d --build`.
+Best free, reliable source for the World Cup: its **free tier includes the World Cup (WC)** —
+fixtures, results, and **group standings** — committed free, 10 req/min.
 
-You'll immediately see **real teams and real scores** (e.g. “West Ham United 3–0 Leeds United”).
-Pick a different competition with `THESPORTSDB_LEAGUE` (4328 = Premier League; the value depends on
-what's in season). Free-tier data is recent results + upcoming fixtures, not minute-by-minute live.
-
-### Option B — football-data.org (LIVE matches, needs a free token)
-
-1. Get a token at <https://www.football-data.org/client/register> (free: 10 req/min).
+1. Get a free token (quick email signup) at <https://www.football-data.org/client/register>.
 2. Configure it:
 ```bash
 cd worldcup-hub/infra/docker
 cp .env.example .env      # set DATA_SOURCE=real, FOOTBALL_API_KEY=<token>, FOOTBALL_COMPETITION=WC
 docker compose up -d --build
 ```
-Live scores stream while a real match is **in play**; otherwise it shows upcoming/recent fixtures.
+Or run the simulator locally:
+```bash
+cd worldcup-hub/services/simulator
+DATA_SOURCE=real FOOTBALL_API_KEY=<token> FOOTBALL_COMPETITION=WC \
+  REDIS_URL=redis://localhost:6379 ./.venv/bin/python -m uvicorn app.main:app --port 9000
+```
+You get **real national teams, real scores, and the group letter** (e.g. `ARG`, group `A`). Live
+scores stream while a match is **in play**; otherwise it shows upcoming/recent WC fixtures. The World
+Cup runs **11 Jun – 19 Jul 2026**, so live data flows during the tournament.
+
+> Other WC-specific free options researched: **worldcup26.ir** (open-source, all 104 matches +
+> groups + live scores; free but needs a JWT registration) and **TheStatsAPI** (free fixtures
+> download + 7-day trial). football-data.org wins on reliability + zero-cost standings.
+
+### Option B — TheSportsDB (REAL data, **no key**, but not ideal for the WC)
+
+Good for an instant, signup-free demo of *any* league — but its free test key caps results, so it's
+weak for the World Cup. Use it to see real data flow without registering:
+```bash
+cd worldcup-hub/services/simulator
+DATA_SOURCE=thesportsdb THESPORTSDB_LEAGUE=4328 REDIS_URL=redis://localhost:6379 \
+  ./.venv/bin/python -m uvicorn app.main:app --port 9000   # 4328 = Premier League
+```
 
 ### Notes
 - **After switching sources, restart the simulator and BFF** (or wait ~90 s — the BFF evicts fixtures
