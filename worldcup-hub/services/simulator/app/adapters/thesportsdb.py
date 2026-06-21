@@ -59,6 +59,9 @@ class TheSportsDbSource:
                     "away_score": aw,
                     "minute": 0,
                     "status": status,
+                    "kickoff": e.get("strTimestamp"),
+                    "home_crest": e.get("strHomeTeamBadge") or "",
+                    "away_crest": e.get("strAwayTeamBadge") or "",
                     "text": (f"FT: {home} {hs}-{aw} {away}" if has_score else f"Upcoming: {home} vs {away}"),
                 }
             )

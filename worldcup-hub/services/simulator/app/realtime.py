@@ -4,6 +4,7 @@
 # Both publish the SAME self-describing payload, so nothing downstream changes.
 import asyncio
 import json
+from datetime import datetime, timedelta, timezone
 
 import redis.asyncio as redis
 
@@ -23,6 +24,7 @@ from app.config import (
     THESPORTSDB_BASE,
     THESPORTSDB_KEY,
     THESPORTSDB_LEAGUE,
+    UPCOMING_FIXTURES,
 )
 
 CHANNEL = "match.events"
@@ -54,6 +56,9 @@ async def _play_fixture(client: "redis.Redis", fixture: dict) -> None:
                     "away_score": away_score,
                     "minute": event.minute,
                     "status": "live",
+                    "kickoff": None,
+                    "home_crest": "",
+                    "away_crest": "",
                     "type": event.type,
                     "team_code": event.team_code,
                     "text": event.text,
@@ -63,9 +68,41 @@ async def _play_fixture(client: "redis.Redis", fixture: dict) -> None:
         await asyncio.sleep(LOOP_PAUSE)
 
 
+async def _publish_upcoming(client: "redis.Redis") -> None:
+    # Re-publish upcoming fixtures periodically so they stay within the BFF's
+    # freshness window and keep showing alongside the live matches.
+    while True:
+        now = datetime.now(timezone.utc)
+        for fx in UPCOMING_FIXTURES:
+            kickoff = (now + timedelta(hours=fx["in_hours"])).isoformat()
+            await _publish(
+                client,
+                {
+                    "fixture_id": fx["id"],
+                    "home": fx["home"],
+                    "away": fx["away"],
+                    "group": fx["group"],
+                    "home_score": 0,
+                    "away_score": 0,
+                    "minute": 0,
+                    "status": "scheduled",
+                    "kickoff": kickoff,
+                    "home_crest": "",
+                    "away_crest": "",
+                    "type": "commentary",
+                    "team_code": None,
+                    "text": f"Kick-off scheduled for {kickoff}",
+                },
+            )
+        await asyncio.sleep(10)
+
+
 async def _run_sim(client: "redis.Redis") -> None:
-    print(f"[simulator] sim mode: publishing {len(DEMO_FIXTURES)} fixtures to '{CHANNEL}'", flush=True)
-    await asyncio.gather(*[_play_fixture(client, f) for f in DEMO_FIXTURES])
+    print(f"[simulator] sim mode: {len(DEMO_FIXTURES)} live + {len(UPCOMING_FIXTURES)} upcoming", flush=True)
+    await asyncio.gather(
+        _publish_upcoming(client),
+        *[_play_fixture(client, f) for f in DEMO_FIXTURES],
+    )
 
 
 # ── Real feed mode (any adapter with fetch_live_states) ─────────────────────

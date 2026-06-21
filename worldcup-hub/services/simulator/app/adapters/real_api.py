@@ -57,8 +57,10 @@ class RealApiSource:
         return stage[:10] or "-"
 
     def _normalise(self, m: dict[str, Any]) -> dict[str, Any]:
-        home = self._team_code(m.get("homeTeam", {}))
-        away = self._team_code(m.get("awayTeam", {}))
+        home_team = m.get("homeTeam", {}) or {}
+        away_team = m.get("awayTeam", {}) or {}
+        home = self._team_code(home_team)
+        away = self._team_code(away_team)
         full = (m.get("score", {}) or {}).get("fullTime", {}) or {}
         hs = full.get("home") or 0
         aw = full.get("away") or 0
@@ -73,5 +75,8 @@ class RealApiSource:
             "away_score": aw,
             "minute": minute,
             "status": status,
+            "kickoff": m.get("utcDate"),
+            "home_crest": home_team.get("crest") or "",
+            "away_crest": away_team.get("crest") or "",
             "text": f"{home} {hs}-{aw} {away} ({m.get('status', '')})",
         }

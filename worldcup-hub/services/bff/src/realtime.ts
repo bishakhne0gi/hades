@@ -16,6 +16,9 @@ interface LiveState {
   away_score: number;
   minute: number;
   status: string;
+  kickoff?: string;
+  home_crest?: string;
+  away_crest?: string;
 }
 
 interface IncomingEvent extends LiveState {
@@ -52,6 +55,10 @@ export function scoreboardSnapshot(): ScoreboardMatch[] {
       away_score: s.away_score,
       minute: s.minute,
       status: s.status,
+      group: s.group,
+      kickoff: s.kickoff,
+      home_crest: s.home_crest,
+      away_crest: s.away_crest,
     }));
 }
 
@@ -81,11 +88,24 @@ export function computeStandings(): StandingRow[] {
   return [...table.values()].sort((x, y) => y.points - x.points || x.group.localeCompare(y.group));
 }
 
-export function matchView(fixtureId: number): { fixture: { id: number; home: string; away: string; group: string }; events: MatchEvent[] } | null {
+export function matchView(fixtureId: number): {
+  fixture: { id: number; home: string; away: string; group: string; status: string; home_score: number; away_score: number; home_crest?: string; away_crest?: string };
+  events: MatchEvent[];
+} | null {
   const s = live.get(fixtureId);
   if (!s) return null;
   return {
-    fixture: { id: fixtureId, home: s.home, away: s.away, group: s.group },
+    fixture: {
+      id: fixtureId,
+      home: s.home,
+      away: s.away,
+      group: s.group,
+      status: s.status,
+      home_score: s.home_score,
+      away_score: s.away_score,
+      home_crest: s.home_crest,
+      away_crest: s.away_crest,
+    },
     events: commentary.get(fixtureId) ?? [],
   };
 }
@@ -105,6 +125,9 @@ function applyEvent(ev: IncomingEvent): void {
     away_score: ev.away_score,
     minute: ev.minute,
     status: ev.status,
+    kickoff: ev.kickoff,
+    home_crest: ev.home_crest,
+    away_crest: ev.away_crest,
   });
 
   const line: MatchEvent = { minute: ev.minute, type: ev.type, team_code: ev.team_code, text: ev.text };

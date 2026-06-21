@@ -19,6 +19,14 @@ DEMO_FIXTURES = [
 EVENT_INTERVAL = float(os.getenv("EVENT_INTERVAL", "0.5"))
 LOOP_PAUSE = float(os.getenv("LOOP_PAUSE", "4"))
 
+# Upcoming (not-yet-started) fixtures shown alongside live ones. `in_hours` is
+# the kickoff offset from now, computed at publish time.
+UPCOMING_FIXTURES = [
+    {"id": 101, "home": "USA", "away": "MEX", "group": "C", "in_hours": 3},
+    {"id": 102, "home": "ITA", "away": "BEL", "group": "C", "in_hours": 6},
+    {"id": 103, "home": "JPN", "away": "KOR", "group": "D", "in_hours": 26},
+]
+
 # ── Real feed (real mode) ───────────────────────────────────────────────────
 # Get a free token at https://www.football-data.org/client/register
 FOOTBALL_API_BASE = os.getenv("FOOTBALL_API_BASE", "https://api.football-data.org/v4")

@@ -32,7 +32,11 @@ export interface ScoreboardMatch {
   home_score: number;
   away_score: number;
   minute: number;
-  status: string;
+  status: string; // "live" | "finished" | "scheduled"
+  group?: string;
+  kickoff?: string; // ISO datetime for upcoming matches
+  home_crest?: string; // flag/badge image URL (real feeds); empty for sim
+  away_crest?: string;
 }
 
 /** Standings MFE view-model. */
