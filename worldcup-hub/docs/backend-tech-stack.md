@@ -96,6 +96,17 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 This means "run the `app` object found in `app/main.py`, listen on port 8000".
 
+> **"But Fastify runs solely on Node — why does FastAPI need a separate server?"**
+> It doesn't really — **Fastify uses a server too, Node just bundles it in.** Any web app needs (1) an
+> HTTP server that binds a port and parses HTTP, and (2) an event loop driving async I/O. Node ships
+> **both built in** (`http` module + libuv loop), and Fastify wraps them — so the server is invisible.
+> Python instead **separates the app from the server** via a protocol (**ASGI**): FastAPI is the
+> *application* (it handles a request once it's handed one, but never binds a port or runs the loop),
+> and **Uvicorn is the *server*** that owns the socket, parses HTTP, and **starts the async event
+> loop** (uvloop — the same libuv Node uses). The payoff of Python's split: you can swap Uvicorn for
+> Hypercorn/Daphne, or front it with Gunicorn workers, **without changing your app**. (`fastapi run`
+> looks like "running alone" but just launches Uvicorn under the hood.)
+
 **The difference:** Gunicorn (older, sync-oriented; often used to *manage* multiple Uvicorn workers
 in production), Hypercorn (another ASGI server). For dev and our containers, Uvicorn alone is fine.
 
