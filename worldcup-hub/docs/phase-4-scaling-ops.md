@@ -60,9 +60,10 @@ kubectl -n worldcup get pods,hpa
 
 - **core-api read/write split**: a dedicated test binds primary + replica to *separate* in-memory DBs
   and asserts a write to the primary is **not** visible via the replica → **13/13 tests pass**.
-- **Monorepo BFF/edge images**: multi-stage Dockerfiles using `pnpm deploy --prod` from the repo
-  root (build context resolves `@wc/types`). The first build runs a full in-container `pnpm install`
-  so it's slow; build with `docker build -f services/bff/Dockerfile -t worldcup-bff ..`.
+- **Monorepo BFF image**: multi-stage Dockerfile using `pnpm deploy --legacy --prod` from the repo
+  root (build context resolves `@wc/types`) — **builds (356 MB) and runs**: container served
+  `/bff/health` → ok and `/bff/news` shaped data, degrading gracefully without Redis. (pnpm 10 needs
+  the `--legacy` flag on `deploy`.) The edge image uses the same pattern.
 - **`compose.full.yml`** validates: `docker compose config` → **11 services** (incl. both core-api
   replicas via a YAML anchor).
 - **k8s manifests**: **16 well-formed resources** across 4 ordered files (parsed + kinds confirmed).
