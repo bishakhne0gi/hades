@@ -8,15 +8,11 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import type { WSContext } from "hono/ws";
-import type {
-  NewsItem,
-  ScoreboardMatch,
-  StandingRow,
-  TimestampedEnvelope,
-} from "@wc/types";
-import { DEMO_FIXTURES, fetchEvents, tallyGoals } from "./upstream.js";
+import type { NewsItem, TimestampedEnvelope } from "@wc/types";
 import {
   bus,
+  computeStandings,
+  matchView,
   recentCommentary,
   scoreboardSnapshot,
   startRedisSubscriber,
@@ -33,71 +29,17 @@ function envelope<T>(data: T): TimestampedEnvelope<T> {
 
 app.get("/bff/health", (c) => c.json({ status: "ok" }));
 
-// Scoreboard: one shaped row per fixture (scores derived from simulator events).
-app.get("/bff/scoreboard", async (c) => {
-  const rows: ScoreboardMatch[] = await Promise.all(
-    DEMO_FIXTURES.map(async (f) => {
-      const events = await fetchEvents(f.id, f.seed);
-      const { home, away, lastMinute } = tallyGoals(events);
-      return {
-        fixture_id: f.id,
-        home: f.home,
-        away: f.away,
-        home_score: home,
-        away_score: away,
-        minute: lastMinute,
-        status: events.length ? "finished" : "scheduled",
-      };
-    }),
-  );
-  return c.json(envelope(rows));
-});
+// Scoreboard: live snapshot built from the match feed (sim or real).
+app.get("/bff/scoreboard", (c) => c.json(envelope(scoreboardSnapshot())));
 
-// Standings: computed from fixture results, grouped.
-app.get("/bff/standings", async (c) => {
-  const table = new Map<string, StandingRow>();
-  const ensure = (team: string, group: string): StandingRow => {
-    let row = table.get(team);
-    if (!row) {
-      row = { team, group, played: 0, won: 0, drawn: 0, lost: 0, points: 0 };
-      table.set(team, row);
-    }
-    return row;
-  };
+// Standings: computed live from current match state.
+app.get("/bff/standings", (c) => c.json(envelope(computeStandings())));
 
-  for (const f of DEMO_FIXTURES) {
-    const { home, away } = tallyGoals(await fetchEvents(f.id, f.seed));
-    const h = ensure(f.home, f.group);
-    const a = ensure(f.away, f.group);
-    h.played += 1;
-    a.played += 1;
-    if (home > away) {
-      h.won += 1; h.points += 3; a.lost += 1;
-    } else if (home < away) {
-      a.won += 1; a.points += 3; h.lost += 1;
-    } else {
-      h.drawn += 1; a.drawn += 1; h.points += 1; a.points += 1;
-    }
-  }
-
-  const rows = [...table.values()].sort(
-    (x, y) => y.points - x.points || x.group.localeCompare(y.group),
-  );
-  return c.json(envelope(rows));
-});
-
-// Match center: the full event feed plus fixture meta for one match.
-app.get("/bff/match/:id", async (c) => {
-  const id = Number(c.req.param("id"));
-  const fixture = DEMO_FIXTURES.find((f) => f.id === id);
-  if (!fixture) return c.json({ error: "fixture not found" }, 404);
-  const events = await fetchEvents(fixture.id, fixture.seed);
-  return c.json(
-    envelope({
-      fixture: { id: fixture.id, home: fixture.home, away: fixture.away, group: fixture.group },
-      events,
-    }),
-  );
+// Match center: fixture meta + commentary feed for one match.
+app.get("/bff/match/:id", (c) => {
+  const view = matchView(Number(c.req.param("id")));
+  if (!view) return c.json({ error: "fixture not found" }, 404);
+  return c.json(envelope(view));
 });
 
 // News: static editorial content (CDN-cacheable in a later phase).

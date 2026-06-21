@@ -38,6 +38,12 @@ services:
     build: ../../services/simulator
     environment:
       REDIS_URL: redis://redis:6379
+      # Flip to real data: set DATA_SOURCE=real and FOOTBALL_API_KEY in a .env file
+      # (next to this compose file). Defaults keep the always-on simulator.
+      DATA_SOURCE: ${DATA_SOURCE:-sim}
+      FOOTBALL_API_KEY: ${FOOTBALL_API_KEY:-}
+      FOOTBALL_COMPETITION: ${FOOTBALL_COMPETITION:-WC}
+      POLL_INTERVAL: ${POLL_INTERVAL:-20}
     ports:
       - "9000:9000"
     depends_on:

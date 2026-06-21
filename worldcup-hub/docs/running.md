@@ -53,6 +53,49 @@ Stop the backend: `cd worldcup-hub/infra/docker && docker compose down`.
 
 ---
 
+## Using REAL match data (instead of the simulator)
+
+By default the panels show the **simulator's** always-on matches. To use a **real football feed**,
+flip the data source — thanks to the ports/adapters boundary, nothing else changes (same Redis
+payload, same BFF, same UI).
+
+**1. Get a free API token** at <https://www.football-data.org/client/register> (free tier: 10 req/min,
+selected competitions).
+
+**2. Tell the simulator to use it.** Create a `.env` next to the compose file:
+```bash
+cd worldcup-hub/infra/docker
+cp .env.example .env
+# edit .env:  DATA_SOURCE=real  and  FOOTBALL_API_KEY=<your token>
+#             FOOTBALL_COMPETITION=WC   (or CL, PL, …)
+docker compose up -d --build    # rebuild so the simulator picks up real mode
+```
+Or run the simulator locally with env vars:
+```bash
+cd worldcup-hub/services/simulator
+DATA_SOURCE=real FOOTBALL_API_KEY=<token> FOOTBALL_COMPETITION=WC \
+  REDIS_URL=redis://localhost:6379 ./.venv/bin/python -m uvicorn app.main:app --port 9000
+```
+
+**3. Run the BFF + frontends as usual** — the scoreboard now shows **real teams and live scores**.
+
+**How it works:** in real mode the simulator polls
+`GET /v4/competitions/{COMP}/matches` (header `X-Auth-Token`), normalises each match to the same
+self-describing payload `{fixture_id, home, away, group, home_score, away_score, minute, status, text}`,
+and publishes it to Redis — exactly the shape the simulator already emits. The BFF builds the
+scoreboard, standings and commentary straight from those messages.
+
+**Notes & limits:**
+- Live matches only stream when a real match is **in play**. If none are live, the feed shows a few
+  upcoming/recent fixtures (real teams) so the UI isn't empty.
+- The free tier doesn't give minute-by-minute goal events, so the commentary feed is score/state
+  updates rather than per-goal lines.
+- Keep `POLL_INTERVAL >= 10` to respect the rate limit.
+- Switch back anytime: set `DATA_SOURCE=sim` (or remove `.env`) and restart.
+- Want a different provider (API-Football, TheSportsDB)? Add a new adapter alongside `real_api.py`
+  implementing the same `fetch_live_states()` — the ports/adapters seam means that's the only file
+  you touch.
+
 ## Optional: the edge (Phase 3)
 
 The browser app calls the BFF directly. The edge (JWT auth, rate limit, content negotiation, cache)

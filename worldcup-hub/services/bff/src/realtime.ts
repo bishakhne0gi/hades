@@ -1,24 +1,25 @@
 // Author: Bishakh
-// Subscribes to the simulator's Redis fan-out, keeps live in-memory state, and
-// emits events the WebSocket (scoreboard) and SSE (commentary) routes listen to.
+// Subscribes to the match feed (sim OR real — same payload) and keeps live state
+// entirely from the messages, so the BFF doesn't care which source produced them.
 import { EventEmitter } from "node:events";
 import { createClient } from "redis";
-import type { MatchEvent, ScoreboardMatch } from "@wc/types";
-import { DEMO_FIXTURES } from "./upstream.js";
+import type { MatchEvent, ScoreboardMatch, StandingRow } from "@wc/types";
 
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 const CHANNEL = "match.events";
 
 interface LiveState {
-  home: number;
-  away: number;
+  home: string;
+  away: string;
+  group: string;
+  home_score: number;
+  away_score: number;
   minute: number;
   status: string;
 }
 
-interface IncomingEvent {
+interface IncomingEvent extends LiveState {
   fixture_id: number;
-  minute: number;
   type: MatchEvent["type"];
   team_code: string | null;
   text: string;
@@ -27,23 +28,57 @@ interface IncomingEvent {
 const live = new Map<number, LiveState>();
 const commentary = new Map<number, MatchEvent[]>();
 
-/** Bus events: "scoreboard" (any score change) and `match:<id>` (one commentary line). */
+/** Bus events: "scoreboard" (any change) and `match:<id>` (one commentary line). */
 export const bus = new EventEmitter();
 bus.setMaxListeners(0);
 
 export function scoreboardSnapshot(): ScoreboardMatch[] {
-  return DEMO_FIXTURES.map((f) => {
-    const s = live.get(f.id) ?? { home: 0, away: 0, minute: 0, status: "scheduled" };
-    return {
-      fixture_id: f.id,
-      home: f.home,
-      away: f.away,
-      home_score: s.home,
-      away_score: s.away,
+  return [...live.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([fixture_id, s]) => ({
+      fixture_id,
+      home: s.home,
+      away: s.away,
+      home_score: s.home_score,
+      away_score: s.away_score,
       minute: s.minute,
       status: s.status,
-    };
-  });
+    }));
+}
+
+export function computeStandings(): StandingRow[] {
+  const table = new Map<string, StandingRow>();
+  const ensure = (team: string, group: string): StandingRow => {
+    let row = table.get(team);
+    if (!row) {
+      row = { team, group, played: 0, won: 0, drawn: 0, lost: 0, points: 0 };
+      table.set(team, row);
+    }
+    return row;
+  };
+  for (const s of live.values()) {
+    const h = ensure(s.home, s.group);
+    const a = ensure(s.away, s.group);
+    h.played += 1;
+    a.played += 1;
+    if (s.home_score > s.away_score) {
+      h.won += 1; h.points += 3; a.lost += 1;
+    } else if (s.home_score < s.away_score) {
+      a.won += 1; a.points += 3; h.lost += 1;
+    } else {
+      h.drawn += 1; a.drawn += 1; h.points += 1; a.points += 1;
+    }
+  }
+  return [...table.values()].sort((x, y) => y.points - x.points || x.group.localeCompare(y.group));
+}
+
+export function matchView(fixtureId: number): { fixture: { id: number; home: string; away: string; group: string }; events: MatchEvent[] } | null {
+  const s = live.get(fixtureId);
+  if (!s) return null;
+  return {
+    fixture: { id: fixtureId, home: s.home, away: s.away, group: s.group },
+    events: commentary.get(fixtureId) ?? [],
+  };
 }
 
 export function recentCommentary(fixtureId: number): MatchEvent[] {
@@ -51,17 +86,16 @@ export function recentCommentary(fixtureId: number): MatchEvent[] {
 }
 
 function applyEvent(ev: IncomingEvent): void {
-  let s = live.get(ev.fixture_id);
-  if (!s || ev.type === "kickoff") {
-    s = { home: 0, away: 0, minute: 0, status: "live" };
-    live.set(ev.fixture_id, s);
-    commentary.set(ev.fixture_id, []);
-  }
-  s.minute = ev.minute;
-  if (ev.type === "goal") {
-    if (ev.team_code === "HOME") s.home += 1;
-    else if (ev.team_code === "AWAY") s.away += 1;
-  }
+  if (ev.type === "kickoff") commentary.set(ev.fixture_id, []);
+  live.set(ev.fixture_id, {
+    home: ev.home,
+    away: ev.away,
+    group: ev.group ?? "-",
+    home_score: ev.home_score,
+    away_score: ev.away_score,
+    minute: ev.minute,
+    status: ev.status,
+  });
 
   const line: MatchEvent = { minute: ev.minute, type: ev.type, team_code: ev.team_code, text: ev.text };
   const buf = commentary.get(ev.fixture_id) ?? [];

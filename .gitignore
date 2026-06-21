@@ -6,6 +6,8 @@ venv/
 *.db
 dev.db
 .pytest_cache/
+# Secrets
+.env
 # OS
 .DS_Store
 # Node
