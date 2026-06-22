@@ -191,17 +191,42 @@ docker compose -f compose.full.yml up -d --build    # public entry via CDN at :8
 Run the frontends with `pnpm preview` as above.
 
 ## Optional: Kubernetes (Phase 4)
+
+> **Docker Desktop must be running first.** `kind` builds the cluster *as a Docker container*, so
+> every command here fails with `Cannot connect to the Docker daemon` until Docker Desktop is up
+> (`open -a Docker`, then wait for `docker info` to succeed).
+>
+> **Run the build/load commands from `infra/docker/`** — the `../../` paths below are relative to
+> that folder. From anywhere else use absolute paths, or you'll hit `path not found`. Likewise
+> `kubectl apply -f infra/k8s/` is relative to the repo root.
+
 ```bash
 brew install kind && kind create cluster
+cd infra/docker          # the ../../ paths below assume this working directory
 # build + load images:
 docker build -t worldcup-core-api ../../services/core-api
 docker build -t worldcup-simulator ../../services/simulator
 docker build -f ../../services/bff/Dockerfile  -t worldcup-bff  ../..
 docker build -f ../../services/edge/Dockerfile -t worldcup-edge ../..
 kind load docker-image worldcup-core-api worldcup-simulator worldcup-bff worldcup-edge
-kubectl apply -f infra/k8s/
+kubectl apply -f ../k8s/                 # from infra/docker; or `infra/k8s/` from repo root
 kubectl -n worldcup get pods,hpa
 ```
+
+> **⚠️ Postgres image (`bitnami/postgresql:16`) — Bitnami retired their free Docker Hub images
+> in 2025**, so the original tag now fails with `ErrImagePull` / `not found`. The manifests
+> (`infra/k8s/10-data.yaml`) use **`bitnamilegacy/postgresql:16`** (the relocated legacy image),
+> which keeps the streaming-replication env-vars working. `compose.full.yml` still references the
+> old `bitnami/postgresql:16` — apply the same swap there if it fails to pull.
+>
+> **Startup order is self-healing, not instant.** `core-api` connects to Postgres on boot, so
+> until Postgres is `Running` the core-api pods sit in `CrashLoopBackOff` (`Connection refused`).
+> That's expected — Kubernetes keeps restarting them. Once Postgres is ready they recover on their
+> own; to skip the exponential back-off wait, nudge them: `kubectl -n worldcup rollout restart
+> deployment/core-api`.
+>
+> **HPA shows `cpu: <unknown>/70%`** because `kind` has no metrics-server. The cluster runs fine;
+> it just can't autoscale 2→6. Install metrics-server to enable real CPU-based scaling.
 
 ---
 
@@ -214,3 +239,12 @@ kubectl -n worldcup get pods,hpa
 - **Port already in use** → another process holds 5000–5004/8080; stop it or change the port in the
   app's `package.json` script.
 - **`pnpm preview` shows old code** → rebuild: `pnpm build`.
+- **`docker`/`kind`/`compose` says "Cannot connect to the Docker daemon"** → Docker Desktop isn't
+  running. `open -a Docker`, wait for `docker info` to succeed, then retry.
+- **`docker build ... path not found` / `kubectl apply ... path does not exist`** → the `../../`
+  and `infra/...` paths are relative. `cd infra/docker` first (for builds) / run from the repo root
+  (for `infra/k8s/`), or use absolute paths.
+- **Postgres pod `ErrImagePull` / `ImagePullBackOff`** → `bitnami/postgresql:16` was retired; use
+  `bitnamilegacy/postgresql:16` (already set in `infra/k8s/10-data.yaml`).
+- **`core-api` pod `CrashLoopBackOff`** → almost always Postgres isn't up yet (core-api needs the DB
+  to start). Get Postgres to `Running`, then `kubectl -n worldcup rollout restart deployment/core-api`.

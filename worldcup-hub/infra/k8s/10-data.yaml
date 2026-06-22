@@ -49,7 +49,7 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: bitnami/postgresql:16
+          image: bitnamilegacy/postgresql:16
           env:
             - { name: POSTGRESQL_REPLICATION_MODE, value: master }
             - { name: POSTGRESQL_REPLICATION_USER, value: repl }
@@ -86,7 +86,7 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: bitnami/postgresql:16
+          image: bitnamilegacy/postgresql:16
           env:
             - { name: POSTGRESQL_REPLICATION_MODE, value: slave }
             - { name: POSTGRESQL_REPLICATION_USER, value: repl }

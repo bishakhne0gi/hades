@@ -17,6 +17,13 @@ everything else lives on a private Docker network (our "VPC").
 flowchart TD
     Browser([Browser / Client])
 
+    subgraph EXT[External Data Providers]
+      FD["football-data.org v4<br/>fixtures · scores · standings"]
+      ESPN["ESPN Site API (keyless)<br/>commentary · lineups · stats"]
+      AF["API-Football (optional)<br/>played-match detail"]
+      TSDB["TheSportsDB (keyless)<br/>sim real-source"]
+    end
+
     subgraph PUBLIC[Public Edge Layer]
       CDN["CDN Proxy<br/>static + image cache · SWR"]
       EDGE["Edge Worker<br/>TLS · JWT auth · rate limit<br/>content negotiation · edge cache"]
@@ -54,11 +61,20 @@ flowchart TD
     SIM -- writes --> PGP
     SIM --> REDIS
     CORE --> REDIS
+
+    %% Real-data path: BFF calls external football APIs server-side (cached, stale-on-error)
+    BFF -- "fixtures/scores/standings" --> FD
+    BFF -- "commentary/lineups/stats" --> ESPN
+    BFF -. "optional rich detail" .-> AF
+    %% Simulator real adapters (DATA_SOURCE=real | thesportsdb)
+    SIM -. "real mode" .-> FD
+    SIM -. "real mode (keyless)" .-> TSDB
 ```
 
-**Two deliberate teaching points in this topology:**
+**Three deliberate teaching points in this topology:**
 - **API Gateway ≠ Load Balancer.** The LB spreads traffic across replicas (and removes unhealthy ones); the gateway is the single policy/routing door into the VPC. They're separate boxes on purpose.
 - **Postgres is primary + read replicas.** All writes go to the primary; reads are served from replicas; the primary streams changes to the replicas (replication). This is how the read-heavy hub scales reads without overloading one database.
+- **The BFF owns the external-data integration.** Real World Cup data comes from third-party APIs the **BFF** calls server-side (never the browser) — so keys stay secret, responses are cached/shaped, and the UI contract is identical whether data is real or simulated. See §8.
 
 ---
 
@@ -210,5 +226,35 @@ worldcup-hub/                      # Turborepo root
 | 10 | Core Web Vitals (LCP/INP/CLS) | Measured with Lighthouse + `web-vitals`, fixed live |
 | 11 | Real-time (Polling/WS/SSE) | Standings=poll, Match Center=SSE, Scoreboard=WS, via Redis fan-out |
 | 12 | Database replication & read scaling | Postgres primary (writes) + read replicas (reads); streaming replication; read/write split in core-api |
+| 13 | External data integration (BFF as anti-corruption layer) | BFF calls football-data.org + ESPN (+ optional API-Football); simulator real adapters call football-data.org / TheSportsDB |
 
 See [`the-difference.md`](./the-difference.md) for the alternatives-and-why-not table that anchors each episode.
+
+---
+
+## 8. Data sources — real feeds vs the simulator
+
+The hub runs two interchangeable data paths behind the **same** UI contract (`@wc/types`) — the
+ports/adapters principle made real. Which one is live is decided by env vars, not code changes.
+
+### Real-data path (default when `FOOTBALL_API_KEY` is set)
+The **BFF** (`services/bff/src/`) is the integration point. It calls third-party football APIs
+**server-side only** (keys never reach the browser), each wrapped in a small in-memory TTL cache that
+serves the last good value if the upstream errors:
+
+| Provider | Base | Auth | File | Supplies |
+|---|---|---|---|---|
+| football-data.org v4 | `api.football-data.org/v4` | `X-Auth-Token` (~10 req/min free) | `footballData.ts` | 104 fixtures, live scores, standings (`/competitions/WC/matches`) |
+| ESPN Site API | `site.api.espn.com/.../soccer` · `fifa.world` | keyless | `espn.ts` | commentary, key events, lineups+formations, statistics; streamed over SSE |
+| API-Football v3 | `v3.football.api-sports.io` | `x-apisports-key` (100/day) | `apiFootball.ts` | optional played-match detail (WC 2022) |
+
+The BFF resolves a football-data fixture to its ESPN event by **date + team-name** match (providers
+use different ids), then maps both into the shared view-model. Switch: `USE_REAL = key set && DATA_SOURCE !== "sim"`.
+
+### Simulated path (offline fallback, always available)
+The **simulator** (`services/simulator/`) publishes events to Redis; core services fan them out.
+Its source is set by `DATA_SOURCE`: `sim` (deterministic engine, no network — the demo default),
+`real` (polls football-data.org), or `thesportsdb` (polls TheSportsDB, free test key `123`).
+
+> **core-api never calls an external API** — it owns the Postgres domain model and the read/write split.
+> All third-party traffic is isolated to the BFF and the simulator's adapters.

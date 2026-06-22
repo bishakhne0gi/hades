@@ -8,8 +8,10 @@ the alternatives that exist and why we did/didn't use them.
 
 - **Architecture & diagrams:** [`architecture.md`](./architecture.md)
 - **Alternatives & why-not, per topic:** [`the-difference.md`](./the-difference.md)
+- **Deep topics index (NGINX, kind/k8s & every complex topic → real file → day):** [`deep-topics.md`](./deep-topics.md)
 - **How AI helps at every step (AI-engineer track):** [`ai-engineer-track.md`](./ai-engineer-track.md)
 - **Eraser.io diagram-as-code (product + diagrams):** [`eraser-architecture.md`](./eraser-architecture.md)
+- **Day 2 recording script — architecture & the reasons:** [`day-02-architecture.md`](./day-02-architecture.md)
 
 Every episode carries two recurring beats: **"The Difference"** (alternatives & why-not) and the
 **"AI co-pilot"** segment (prompt → generate → verify → correct → learn).
@@ -28,58 +30,71 @@ Every episode carries two recurring beats: **"The Difference"** (alternatives & 
 
 ## 30-Day episode map
 
-Each day = **build goal** + a **"The Difference"** teaching segment.
+This is the **teaching order** (how we record), not the original build order. The product is
+already built; each day we open one part of it, explain **why it's built that way**, and run the
+**"The Difference"** segment (alternatives & why-not).
 
-### Phase 0 — Foundations (Days 1–3)
+> **Day 1 — Demo (done).** We showed the finished World Cup 2026 Live Hub end to end: live
+> scoreboard, ball-by-ball commentary, standings, news — every panel updating live. The hook:
+> *"By Day 30 you'll know exactly how every box behind this works, and why we chose it."*
+>
+> **Day 2 — Architecture (today).** We build the whole system diagram live in **eraser.io** and walk
+> the reason behind every box and every arrow. Full script: [`day-02-architecture.md`](./day-02-architecture.md).
+
+### Phase 0 — Orientation (Days 1–2)
+| Day | Teaching goal | The Difference |
+|---|---|---|
+| 1 | **Product demo** — tour the finished live hub; what each panel does; the promise of the series | Why a real product beats toy examples for learning architecture |
+| 2 | **Architecture & the reasons** — draw the end-to-end diagram in eraser.io; explain every box/arrow; the request path & the real-time path | The whole system vs a single monolith app — and *why each tier exists* |
+
+### Phase 1 — Foundations & data (Days 3–5)
 | Day | Build goal | The Difference |
 |---|---|---|
-| 1 | Series intro; whiteboard the full architecture; local dev + Docker basics | Why this architecture vs a single monolith app |
-| 2 | FastAPI core service + Postgres; first endpoints (teams, fixtures); docker-compose | ORM vs raw SQL; container vs bare-metal |
-| 3 | Match simulator service; ports/adapters (sim + real-API adapter) | Simulated vs real data source; why an abstraction boundary |
+| 3 | FastAPI core service + Postgres; first endpoints (teams, fixtures); docker-compose | ORM vs raw SQL; container vs bare-metal |
+| 4 | Match simulator service; ports/adapters (sim + real-API adapter) | Simulated vs real data source; why an abstraction boundary |
+| 5 | Turborepo monorepo; shared packages; vertical-slicing concept | Monorepo vs polyrepo; vertical vs horizontal slicing |
 
-### Phase 1 — Frontend & micro-frontends (Days 4–9)
+### Phase 2 — Frontend & micro-frontends (Days 6–10)
 | Day | Build goal | The Difference |
 |---|---|---|
-| 4 | Turborepo monorepo; shared packages; vertical-slicing concept | Monorepo vs polyrepo; vertical vs horizontal slicing |
-| 5 | Build the Shell host app (React + Vite + TS) | SPA shell vs server-stitched composition |
-| 6 | Module Federation — expose first remote (Scoreboard) | Runtime MF vs build-time vs iframes |
-| 7 | Add remotes (Match Center, Standings, News); shared deps & version skew | Shared singletons vs duplication; version mismatch handling |
-| 8 | BFF tier (Node/Hono) — aggregation & shaping | BFF vs direct core-API calls vs GraphQL |
-| 9 | Wire MFEs → BFF → core API end-to-end | Over-fetching vs tailored payloads |
+| 6 | Build the Shell host app (React + Vite + TS) | SPA shell vs server-stitched composition |
+| 7 | Module Federation — expose first remote (Scoreboard) | Runtime MF vs build-time vs iframes |
+| 8 | Add remotes (Match Center, Standings, News); shared deps & version skew | Shared singletons vs duplication; version mismatch handling |
+| 9 | BFF tier (Node/Hono) — aggregation & shaping | BFF vs direct core-API calls vs GraphQL |
+| 10 | Wire MFEs → BFF → core API end-to-end | Over-fetching vs tailored payloads |
 
-### Phase 2 — Real-time (Days 10–14)
+### Phase 3 — Real-time (Days 11–15)
 | Day | Build goal | The Difference |
 |---|---|---|
-| 10 | Standings via **polling** | Polling intervals vs freshness vs load |
-| 11 | Match Center via **SSE** | SSE vs polling; reconnection semantics |
-| 12 | Scoreboard via **WebSocket** | WS vs SSE; bidirectional cost |
-| 13 | Redis pub/sub fan-out from simulator; scaling real-time | In-process vs broker fan-out; sticky sessions |
-| 14 | Comparison episode: Polling vs SSE vs WebSocket | When to use which (decision framework) |
+| 11 | Standings via **polling** | Polling intervals vs freshness vs load |
+| 12 | Match Center via **SSE** | SSE vs polling; reconnection semantics |
+| 13 | Scoreboard via **WebSocket** | WS vs SSE; bidirectional cost |
+| 14 | Redis pub/sub fan-out from simulator; scaling real-time | In-process vs broker fan-out; sticky sessions |
+| 15 | Comparison episode: Polling vs SSE vs WebSocket | When to use which (decision framework) |
 
-### Phase 3 — Edge, gateway & CDN (Days 15–20)
+### Phase 4 — Edge, gateway & CDN (Days 16–21)
 | Day | Build goal | The Difference |
 |---|---|---|
-| 15 | HTTPS / TLS termination (local certs) | Terminate at edge vs origin vs mTLS |
-| 16 | API Gateway in a private network (VPC) | Private gateway vs direct exposure vs mesh |
-| 17 | Edge Functions intro (wrangler/workerd local) | Edge vs origin vs regional serverless |
-| 18 | Edge auth (JWT) + content negotiation | JWT-at-edge vs server sessions |
-| 19 | Rate limiting at edge (token bucket, Redis) | Edge vs app-level vs none |
-| 20 | CDN — caching, cache headers, SWR, asset versioning, image optimization | CDN vs origin serving; cache-busting |
+| 16 | HTTPS / TLS termination (local certs) | Terminate at edge vs origin vs mTLS |
+| 17 | API Gateway in a private network (VPC) | Private gateway vs direct exposure vs mesh |
+| 18 | Edge Functions intro (wrangler/workerd local) | Edge vs origin vs regional serverless |
+| 19 | Edge auth (JWT) + content negotiation | JWT-at-edge vs server sessions |
+| 20 | Rate limiting at edge (token bucket, Redis) | Edge vs app-level vs none |
+| 21 | CDN — caching, cache headers, SWR, asset versioning, image optimization | CDN vs origin serving; cache-busting |
 
-### Phase 4 — Scaling & ops (Days 21–25)
+### Phase 5 — Scaling & ops (Days 22–26)
 | Day | Build goal | The Difference |
 |---|---|---|
-| 21 | Load balancing (Nginx/HAProxy, replicas, health checks, algorithms) | L7 vs L4; round-robin vs least-conn; DNS RR |
-| 22 | Containerization deep dive (multi-stage builds, image size, security) | Multi-stage vs single-stage; distroless |
-| 23 | Orchestration with k8s (kind) — Deployments, Services | Compose vs k8s |
-| 24 | k8s scaling (app tier) — HPA, rolling updates, self-healing | Manual scaling vs HPA; rolling vs recreate |
-| 25 | Scaling the data tier — Postgres primary + read replicas, read/write split; then integrate edge + LB + gateway + k8s | Single DB vs read replicas; replication lag & read-after-write; sync vs async replication |
+| 22 | Load balancing (Nginx/HAProxy, replicas, health checks, algorithms) | L7 vs L4; round-robin vs least-conn; DNS RR |
+| 23 | Containerization deep dive (multi-stage builds, image size, security) | Multi-stage vs single-stage; distroless |
+| 24 | Orchestration with k8s (kind) — Deployments, Services | Compose vs k8s |
+| 25 | k8s scaling (app tier) — HPA, rolling updates, self-healing | Manual scaling vs HPA; rolling vs recreate |
+| 26 | Scaling the data tier — Postgres primary + read replicas, read/write split | Single DB vs read replicas; replication lag & read-after-write; sync vs async |
 
-### Phase 5 — Performance & finale (Days 26–30)
+### Phase 6 — Performance & finale (Days 27–30)
 | Day | Build goal | The Difference |
 |---|---|---|
-| 26 | Core Web Vitals intro + measuring (Lighthouse, `web-vitals`) | Field vs lab metrics |
-| 27 | **LCP** — initial render; SSR/streaming; image & font strategy | CSR vs SSR vs streaming |
-| 28 | **CLS** — layout stability with async micro-frontends | Reserved space vs layout shift |
-| 29 | **INP** — interaction responsiveness; re-render cost | Heavy re-render vs memoization/concurrency |
+| 27 | Core Web Vitals intro + measuring (Lighthouse, `web-vitals`) | Field vs lab metrics |
+| 28 | **LCP** — initial render; SSR/streaming; image & font strategy | CSR vs SSR vs streaming |
+| 29 | **CLS + INP** — layout stability with async micro-frontends; interaction responsiveness | Reserved space vs layout shift; heavy re-render vs memoization/concurrency |
 | 30 | Finale — full system tour, recap, optional cloud-deploy teaser | Local vs real cloud (what changes) |

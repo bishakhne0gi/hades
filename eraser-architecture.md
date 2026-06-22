@@ -28,6 +28,10 @@ the topics it teaches (see comments).
 > This is the exact definition now live in the eraser.io workspace. Note: the API Gateway uses a
 > distinct icon from the Load Balancer (so the two read as separate components), and Postgres is shown
 > as **primary + two read replicas** to teach replication and read/write splitting.
+>
+> **Data sources are now on the diagram (red group).** The hub runs in two modes: a **real-data path**
+> where the BFF calls external football APIs server-side, and a **simulated path** (simulator → Redis →
+> core services) for offline/replayable demos. See *Data sources* below for exactly who calls what.
 
 ```eraser
 // World Cup 2026 Live Hub - End to End Architecture
@@ -66,6 +70,13 @@ Data Stores [icon: database, color: purple] {
   Redis [icon: redis]
 }
 
+External Data Providers [icon: globe, color: red] {
+  football-data.org [icon: globe]
+  ESPN Site API [icon: globe]
+  API-Football [icon: globe]
+  TheSportsDB [icon: globe]
+}
+
 Build Pipeline [icon: github, color: gray] {
   Turborepo [icon: github]
   CI Build [icon: docker]
@@ -87,6 +98,14 @@ Load Balancer > API Gateway
 API Gateway > BFF
 API Gateway > Core Services
 BFF > Core Services
+
+// Real-data path: the BFF fetches real World Cup data server-side (in-memory cached, serves stale on error)
+BFF > football-data.org: fixtures · scores · standings (X-Auth-Token)
+BFF > ESPN Site API: commentary · lineups · stats (keyless)
+BFF > API-Football: rich detail for played matches (optional, x-apisports-key)
+// Simulator real adapters (sim fallback path, DATA_SOURCE=real | thesportsdb)
+Simulator > football-data.org: poll live (real mode)
+Simulator > TheSportsDB: poll live (keyless test key)
 
 // Database replication: writes to primary, reads from a replica
 Core Services > Postgres Primary: writes
@@ -140,6 +159,40 @@ API Gateway > Edge Worker: response (+cache-control)
 Edge Worker > CDN: response
 CDN > Browser: response (now cached)
 ```
+
+---
+
+## Data sources — where the real data comes from
+
+The hub serves **two interchangeable data paths**, selected by env vars. This is the ports/adapters
+teaching point made real: the UI contract (`@wc/types`) is identical either way.
+
+### Path A — Real data (default when a key is present)
+The **BFF** (`services/bff/src/`) calls external providers directly, server-side, each behind a small
+in-memory TTL cache that serves the last good (stale) value on upstream error:
+
+| Provider | Endpoint (base) | Auth | In code | What it supplies |
+|---|---|---|---|---|
+| **football-data.org** v4 | `api.football-data.org/v4` | `X-Auth-Token` header — free tier ~10 req/min | `footballData.ts` | All 104 fixtures, live scores, group standings. Workhorse: `/competitions/WC/matches`. |
+| **ESPN Site API** | `site.api.espn.com/apis/site/v2/sports/soccer` (league `fifa.world`) | **none (keyless)** | `espn.ts` | Flowing play-by-play **commentary**, key events (goals/cards), **lineups + formations**, **statistics**. Endpoints: `/scoreboard?dates=`, `/summary?event=`. Streamed over SSE for live matches. |
+| **API-Football** v3 | `v3.football.api-sports.io` | `x-apisports-key` header — free tier 100 req/day | `apiFootball.ts` | Optional richer detail (lineups/events/stats) for **played** matches; default season WC 2022. |
+
+> The BFF resolves a football-data fixture to its ESPN event by **date + team name match** (different
+> providers use different fixture ids), then maps everything into the shared `MatchEvent[]` / view-model
+> contract. Switch logic: `USE_REAL = FOOTBALL_API_KEY set && DATA_SOURCE !== "sim"`.
+
+### Path B — Simulated / offline (fallback, always available)
+The **Simulator** (`services/simulator/`) publishes match events to **Redis**; core services subscribe
+and fan out over WS/SSE. Its source is chosen by `DATA_SOURCE`:
+
+| `DATA_SOURCE` | Adapter | Source |
+|---|---|---|
+| `sim` (default) | `adapters/simulated.py` | Deterministic in-process match engine — no network, replayable. |
+| `real` | `adapters/real_api.py` | Polls **football-data.org** live matches. |
+| `thesportsdb` | `adapters/thesportsdb.py` | Polls **TheSportsDB** (`thesportsdb.com/api/v1/json`, free test key `123`) — real teams + scores, past + upcoming. |
+
+> **core-api** (FastAPI + Postgres) holds the domain model (teams, fixtures) and does **not** call any
+> external API — it's the read/write-split database tier.
 
 ---
 
